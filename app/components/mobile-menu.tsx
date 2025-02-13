@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState } from 'react'
 import Link from 'next/link'
@@ -27,10 +27,12 @@ export function MobileMenu() {
           <Link href="/contact" className="text-lg" onClick={() => setIsOpen(false)}>Contact</Link>
         </nav>
         <div className="mt-8">
-          <AuthDialogs />
+          <AuthDialogs>
+            <Button onClick={() => setIsOpen(false)}>Sign In</Button>
+            <Button onClick={() => setIsOpen(false)}>Sign Up</Button>
+          </AuthDialogs>
         </div>
       </SheetContent>
     </Sheet>
   )
 }
-
