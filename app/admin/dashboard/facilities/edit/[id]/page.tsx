@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -59,7 +59,7 @@ interface Facility {
 }
 
 interface PageProps {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
 export default function EditFacilityPage({ params }: PageProps) {
@@ -80,7 +80,7 @@ export default function EditFacilityPage({ params }: PageProps) {
   //const autocompleteInputRef = useRef<HTMLInputElement>(null)
 
   // Unwrap the params using React.use()
-  const { id } = params
+  const { id } = use(params)
 
   useEffect(() => {
     const fetchFacility = async () => {
