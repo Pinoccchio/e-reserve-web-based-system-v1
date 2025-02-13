@@ -67,7 +67,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
       setIsSignUpOpen(false)
       router.push(accountType === "admin" ? "/admin/dashboard" : "/end-user/dashboard")
     } catch (error) {
-      showToast("There was a problem creating your account. Please try again.", "error")
+      showToast("There was a problem creating your account. Please try again.")
     } finally {
       setIsLoading(false)
     }
@@ -93,7 +93,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
       showToast("Welcome!", "success")
     } catch (error) {
       console.error("Error during sign in:", error)
-      showToast("Invalid email or password.", "error")
+      showToast("Invalid email or password.")
     } finally {
       setIsLoading(false)
     }
