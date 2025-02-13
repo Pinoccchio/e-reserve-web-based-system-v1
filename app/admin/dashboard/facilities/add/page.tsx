@@ -15,6 +15,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
 
+declare var google: any // Declare google variable
+
 const bagumbayanCenter = {
   lat: 13.3553,
   lng: 123.3242,
@@ -41,7 +43,6 @@ export default function AddFacilityPage() {
   const [currentImages, setCurrentImages] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null)
   const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number } | null>(null)
 
   useEffect(() => {
@@ -70,8 +71,6 @@ export default function AddFacilityPage() {
           setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
         }
       })
-
-      setAutocomplete(autocompleteInstance)
     })
   }, [])
 

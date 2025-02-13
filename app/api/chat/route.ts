@@ -74,18 +74,19 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ output: data[0].generated_text })
-  } catch (error: any) {
+  } catch (error) {
     console.error("Chat API Error:", error)
 
-    if (error.status === 429) {
+    const err = error as { status?: number; message?: string } // Define a specific type for the error
+
+    if (err.status === 429) {
       return NextResponse.json({ error: "Rate limit exceeded. Please try again later." }, { status: 429 })
     }
 
-    if (error.status === 401) {
+    if (err.status === 401) {
       return NextResponse.json({ error: "Invalid API key. Please check your configuration." }, { status: 401 })
     }
 
     return NextResponse.json({ error: "An error occurred while processing your request" }, { status: 500 })
   }
 }
-

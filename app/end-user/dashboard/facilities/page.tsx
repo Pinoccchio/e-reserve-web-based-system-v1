@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Eye, Calendar, MapPin, Users, Building, CurrencyIcon as LucidePhilippinePeso, PhilippinePesoIcon } from "lucide-react"
+import { Search, Eye, Calendar, MapPin, Users, Building, PhilippinePesoIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"

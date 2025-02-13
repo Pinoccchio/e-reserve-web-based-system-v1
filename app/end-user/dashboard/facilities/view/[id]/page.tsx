@@ -32,7 +32,6 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
   const { id: facilityId } = React.use(params)
   const [facility, setFacility] = useState<Facility | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const router = useRouter()
 
@@ -213,4 +212,3 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
     </div>
   )
 }
-

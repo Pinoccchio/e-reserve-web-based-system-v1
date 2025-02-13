@@ -31,10 +31,6 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     }
   }, [isOpen])
 
-  const openSignInDialog = () => {
-    setIsSignInOpen(true)
-  }
-
   const openSignUpDialog = () => {
     setIsSignUpOpen(true)
   }
@@ -51,7 +47,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const lastName = formData.get("lastName") as string
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -69,11 +65,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
 
       showToast("Account created successfully. Welcome!", "success")
       setIsSignUpOpen(false)
-      if (accountType === "admin") {
-        router.push("/admin/dashboard")
-      } else {
-        router.push("/end-user/dashboard")
-      }
+      router.push(accountType === "admin" ? "/admin/dashboard" : "/end-user/dashboard")
     } catch (error) {
       showToast("There was a problem creating your account. Please try again.", "error")
     } finally {
@@ -90,7 +82,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const password = formData.get("password") as string
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
@@ -98,8 +90,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
       if (error) throw error
 
       setIsSignInOpen(false)
-
-      showToast(`Welcome, ${data.user.user_metadata.first_name}!`, "success")
+      showToast("Welcome!", "success")
     } catch (error) {
       console.error("Error during sign in:", error)
       showToast("Invalid email or password.", "error")
@@ -240,4 +231,3 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     </>
   )
 }
-

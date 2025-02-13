@@ -105,7 +105,7 @@ export default async function Home() {
             </h1>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
               Discover and reserve the ideal space for your next event with E-Reserve. From intimate gatherings to grand
-              celebrations, we've got you covered.
+              celebrations, we&apos;ve got you covered.
             </p>
             <div className="mt-8">
               <AuthDialogs>
@@ -233,4 +233,3 @@ async function FeaturedVenues() {
     </div>
   )
 }
-

@@ -1,6 +1,7 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
+import type React from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -43,7 +44,7 @@ interface Facility {
   images: { id: number; image_url: string }[]
 }
 
-export default function EditFacilityPage({ params }: { params: Promise<{ id: string }> }) {
+export default function EditFacilityPage({ params }: { params: { id: string } }) {
   const router = useRouter()
   const [facility, setFacility] = useState<Facility | null>(null)
   const [name, setName] = useState("")
@@ -57,12 +58,9 @@ export default function EditFacilityPage({ params }: { params: Promise<{ id: str
   const [existingImages, setExistingImages] = useState<{ id: number; image_url: string }[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null)
   const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number } | null>(null)
-  //const autocompleteInputRef = useRef<HTMLInputElement>(null)
 
-  // Unwrap the params using React.use()
-  const id = React.use(params).id
+  const { id } = params
 
   useEffect(() => {
     const fetchFacility = async () => {
@@ -104,7 +102,7 @@ export default function EditFacilityPage({ params }: { params: Promise<{ id: str
         const initAutocomplete = () => {
           const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
           if (autocompleteInput) {
-            const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
+            const autocompleteInstance = new google.maps.places.Autocomplete(autocompleteInput, {
               fields: ["formatted_address", "geometry"],
             })
 
@@ -121,11 +119,7 @@ export default function EditFacilityPage({ params }: { params: Promise<{ id: str
                 setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
               }
             })
-
-            setAutocomplete(autocompleteInstance)
           } else {
-            //console.error("Autocomplete input not found")
-            // Retry after a short delay
             setTimeout(initAutocomplete, 500)
           }
         }

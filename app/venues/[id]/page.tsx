@@ -33,10 +33,8 @@ export default function ViewFacilityPage({ params }: { params: { id: string } })
   const { id: facilityId } = params
   const [facility, setFacility] = useState<Facility | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [selectedImage, setSelectedImage] = useState<string | null>(null)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
   const router = useRouter()
-  const [isSignInOpen, setIsSignInOpen] = useState(false)
   const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false)
 
   useEffect(() => {
@@ -102,10 +100,6 @@ export default function ViewFacilityPage({ params }: { params: { id: string } })
       // TODO: Implement booking functionality for authenticated users
       console.log("Booking facility:", facility?.id)
     }
-  }
-
-  const openSignInDialog = () => {
-    setIsSignInOpen(true)
   }
 
   const handleNavigate = () => {
@@ -229,4 +223,3 @@ export default function ViewFacilityPage({ params }: { params: { id: string } })
     </div>
   )
 }
-
