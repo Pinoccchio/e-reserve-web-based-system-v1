@@ -15,7 +15,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
 
-declare var google: any // Declare google variable
+declare global {
+  interface Window {
+    google: {
+      maps: {
+        places: {
+          Autocomplete: new (input: HTMLInputElement, options: any) => any;
+        };
+      };
+    };
+  }
+}
 
 const bagumbayanCenter = {
   lat: 13.3553,
@@ -54,7 +64,7 @@ export default function AddFacilityPage() {
 
     loader.load().then(() => {
       const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
-      const autocompleteInstance = new google.maps.places.Autocomplete(autocompleteInput, {
+      const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
         fields: ["formatted_address", "geometry"],
       })
 
@@ -361,4 +371,3 @@ export default function AddFacilityPage() {
     </div>
   )
 }
-
