@@ -20,11 +20,15 @@ declare global {
     google: {
       maps: {
         places: {
-          Autocomplete: new (input: HTMLInputElement, options: any) => any;
-        };
-      };
-    };
+          Autocomplete: new (input: HTMLInputElement, options: AutocompleteOptions) => google.maps.places.Autocomplete
+        }
+      }
+    }
   }
+}
+
+interface AutocompleteOptions {
+  fields: string[]
 }
 
 const bagumbayanCenter = {
@@ -371,3 +375,4 @@ export default function AddFacilityPage() {
     </div>
   )
 }
+
