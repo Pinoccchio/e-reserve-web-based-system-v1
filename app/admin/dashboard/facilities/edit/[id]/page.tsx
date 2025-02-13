@@ -16,7 +16,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
 
-declare var google: any // Declare google variable
+declare global {
+  interface Window {
+    google: {
+      maps: {
+        places: {
+          Autocomplete: new (input: HTMLInputElement, options: AutocompleteOptions) => google.maps.places.Autocomplete
+        }
+      }
+    }
+  }
+}
+
+interface AutocompleteOptions {
+  fields: string[]
+}
 
 const bagumbayanCenter = {
   lat: 13.3553,
@@ -62,7 +76,6 @@ export default function EditFacilityPage({ params }: PageProps) {
   const [existingImages, setExistingImages] = useState<{ id: number; image_url: string }[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
-  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null)
   const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number } | null>(null)
   //const autocompleteInputRef = useRef<HTMLInputElement>(null)
 
@@ -103,43 +116,26 @@ export default function EditFacilityPage({ params }: PageProps) {
       libraries: ["places"],
     })
 
-    loader
-      .load()
-      .then(() => {
-        const initAutocomplete = () => {
-          const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
-          if (autocompleteInput) {
-            const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
-              fields: ["formatted_address", "geometry"],
-            })
+    loader.load().then(() => {
+      const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
+      const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
+        fields: ["formatted_address", "geometry"],
+      })
 
-            autocompleteInstance.addListener("place_changed", () => {
-              const place = autocompleteInstance.getPlace()
-              if (place.geometry?.location) {
-                const newLocation = {
-                  address: place.formatted_address || "",
-                  lat: place.geometry.location.lat(),
-                  lng: place.geometry.location.lng(),
-                }
-                setLocation(newLocation)
-                setSearchQuery(newLocation.address)
-                setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
-              }
-            })
-
-            setAutocomplete(autocompleteInstance)
-          } else {
-            //console.error("Autocomplete input not found")
-            // Retry after a short delay
-            setTimeout(initAutocomplete, 500)
+      autocompleteInstance.addListener("place_changed", () => {
+        const place = autocompleteInstance.getPlace()
+        if (place.geometry?.location) {
+          const newLocation = {
+            address: place.formatted_address || "",
+            lat: place.geometry.location.lat(),
+            lng: place.geometry.location.lng(),
           }
+          setLocation(newLocation)
+          setSearchQuery(newLocation.address)
+          setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
         }
-
-        initAutocomplete()
       })
-      .catch((error) => {
-        console.error("Error loading Google Maps API:", error)
-      })
+    })
   }, [])
 
   const handleLocationSelect = (selectedLocation: Location | null) => {
