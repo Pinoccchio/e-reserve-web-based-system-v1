@@ -16,6 +16,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
 
+declare var google: any // Declare google variable
+
 const bagumbayanCenter = {
   lat: 13.3553,
   lng: 123.3242,
@@ -60,8 +62,11 @@ export default function EditFacilityPage({ params }: PageProps) {
   const [existingImages, setExistingImages] = useState<{ id: number; image_url: string }[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
+  const [autocomplete, setAutocomplete] = useState<google.maps.places.Autocomplete | null>(null)
   const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number } | null>(null)
+  //const autocompleteInputRef = useRef<HTMLInputElement>(null)
 
+  // Unwrap the params using React.use()
   const { id } = params
 
   useEffect(() => {
@@ -104,7 +109,7 @@ export default function EditFacilityPage({ params }: PageProps) {
         const initAutocomplete = () => {
           const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
           if (autocompleteInput) {
-            const autocompleteInstance = new google.maps.places.Autocomplete(autocompleteInput, {
+            const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
               fields: ["formatted_address", "geometry"],
             })
 
@@ -121,7 +126,11 @@ export default function EditFacilityPage({ params }: PageProps) {
                 setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
               }
             })
+
+            setAutocomplete(autocompleteInstance)
           } else {
+            //console.error("Autocomplete input not found")
+            // Retry after a short delay
             setTimeout(initAutocomplete, 500)
           }
         }
@@ -452,3 +461,4 @@ export default function EditFacilityPage({ params }: PageProps) {
     </div>
   )
 }
+
