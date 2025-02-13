@@ -16,7 +16,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
 
-
 const bagumbayanCenter = {
   lat: 13.3553,
   lng: 123.3242,
@@ -43,7 +42,11 @@ interface Facility {
   images: { id: number; image_url: string }[]
 }
 
-export default function EditFacilityPage({ params }: { params: { id: string } }) {
+interface PageProps {
+  params: { id: string }
+}
+
+export default function EditFacilityPage({ params }: PageProps) {
   const router = useRouter()
   const [facility, setFacility] = useState<Facility | null>(null)
   const [name, setName] = useState("")
@@ -101,7 +104,7 @@ export default function EditFacilityPage({ params }: { params: { id: string } })
         const initAutocomplete = () => {
           const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
           if (autocompleteInput) {
-            const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
+            const autocompleteInstance = new google.maps.places.Autocomplete(autocompleteInput, {
               fields: ["formatted_address", "geometry"],
             })
 
@@ -449,3 +452,4 @@ export default function EditFacilityPage({ params }: { params: { id: string } })
     </div>
   )
 }
+
