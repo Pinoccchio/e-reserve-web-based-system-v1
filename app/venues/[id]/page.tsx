@@ -1,6 +1,5 @@
 "use client"
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -29,8 +28,8 @@ interface Facility {
 
 const VisuallyHidden = ({ children }: { children: React.ReactNode }) => <span className="sr-only">{children}</span>
 
-export default function ViewFacilityPage({ params }: { params: { id: string } }) {
-  const { id: facilityId } = params
+export default function ViewFacilityPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id: facilityId } = use(params)
   const [facility, setFacility] = useState<Facility | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
