@@ -47,7 +47,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const lastName = formData.get("lastName") as string
 
     try {
-      const { error: signUpError } = await supabase.auth.signUp({
+      await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -59,14 +59,10 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
         },
       })
 
-      if (signUpError) {
-        throw signUpError
-      }
-
       showToast("Account created successfully. Welcome!", "success")
       setIsSignUpOpen(false)
       router.push(accountType === "admin" ? "/admin/dashboard" : "/end-user/dashboard")
-    } catch (error) {
+    } catch {
       showToast("There was a problem creating your account. Please try again.")
     } finally {
       setIsLoading(false)
@@ -82,17 +78,14 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const password = formData.get("password") as string
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) throw error
-
       setIsSignInOpen(false)
       showToast("Welcome!", "success")
-    } catch (error) {
-      console.error("Error during sign in:", error)
+    } catch {
       showToast("Invalid email or password.")
     } finally {
       setIsLoading(false)
