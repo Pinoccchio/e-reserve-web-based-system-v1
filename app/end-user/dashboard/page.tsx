@@ -16,7 +16,7 @@ export default function EndUserDashboard() {
           <CardTitle>Quick Actions</CardTitle>
         </CardHeader>
         <CardContent className="flex gap-4">
-          <Button onClick={() => router.push("/end-user/dashboard/reservations")}>
+          <Button onClick={() => router.push("/end-user/dashboard/reservation")}>
             <Calendar className="mr-2 h-4 w-4" />
             My Reservations
           </Button>
@@ -27,15 +27,7 @@ export default function EndUserDashboard() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Upcoming Reservations</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p>You have no upcoming reservations.</p>
-          {/* Placeholder for future reservation list */}
-        </CardContent>
-      </Card>
+     
     </div>
   )
 }
