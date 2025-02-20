@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { format, parseISO } from "date-fns"
-import { CalendarIcon, ChevronLeft, ChevronRight, MapPin, Users } from "lucide-react"
+import { CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react"
 import { showToast } from "@/components/ui/toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 
@@ -22,11 +22,6 @@ interface Reservation {
   end_time: string
   facility: Facility
   status: "pending" | "approved" | "rejected" | "cancelled" | "completed"
-  booker_name: string
-  booker_email: string
-  booker_phone: string
-  purpose: string | null
-  number_of_attendees: number | null
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
@@ -76,6 +71,7 @@ export function ReservationCalendar() {
         `)
         .gte("start_time", startOfMonth)
         .lte("start_time", endOfMonth)
+        .neq("status", "declined") // Exclude declined reservations
         .order("start_time", { ascending: true })
 
       if (error) throw error
@@ -200,54 +196,21 @@ export function ReservationCalendar() {
                 <div>
                   <h3 className="text-base font-semibold flex items-center mb-3">
                     <CalendarIcon className="mr-2 h-5 w-5" />
-                    Facility Information
+                    Reservation Information
                   </h3>
                   <div className="space-y-2 pl-7">
                     <div>
-                      <span className="font-medium">Name: </span>
+                      <span className="font-medium">Facility: </span>
                       {selectedReservation.facility.name}
                     </div>
-                    <div className="flex items-start">
-                      <MapPin className="mr-2 h-4 w-4 mt-0.5 flex-shrink-0" />
-                      <span>{selectedReservation.facility.location}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-base font-semibold flex items-center mb-3">
-                    <CalendarIcon className="mr-2 h-5 w-5" />
-                    Booking Details
-                  </h3>
-                  <div className="space-y-2 pl-7">
                     <div>
-                      <span className="font-medium">Start: </span>
-                      {format(parseISO(selectedReservation.start_time), "MMMM d, yyyy h:mm a")}
+                      <span className="font-medium">Date: </span>
+                      {format(parseISO(selectedReservation.start_time), "MMMM d, yyyy")}
                     </div>
                     <div>
-                      <span className="font-medium">End: </span>
-                      {format(parseISO(selectedReservation.end_time), "MMMM d, yyyy h:mm a")}
-                    </div>
-                    <div>
-                      <span className="font-medium">Booker: </span>
-                      {selectedReservation.booker_name}
-                    </div>
-                    <div>
-                      <span className="font-medium">Email: </span>
-                      {selectedReservation.booker_email}
-                    </div>
-                    <div>
-                      <span className="font-medium">Phone: </span>
-                      {selectedReservation.booker_phone}
-                    </div>
-                    <div>
-                      <span className="font-medium">Purpose: </span>
-                      {selectedReservation.purpose || "N/A"}
-                    </div>
-                    <div className="flex items-center">
-                      <Users className="mr-2 h-4 w-4" />
-                      <span className="font-medium">Attendees: </span>
-                      <span className="ml-1">{selectedReservation.number_of_attendees || "N/A"}</span>
+                      <span className="font-medium">Time: </span>
+                      {format(parseISO(selectedReservation.start_time), "h:mm a")} -{" "}
+                      {format(parseISO(selectedReservation.end_time), "h:mm a")}
                     </div>
                     <div>
                       <span className="font-medium">Status: </span>
