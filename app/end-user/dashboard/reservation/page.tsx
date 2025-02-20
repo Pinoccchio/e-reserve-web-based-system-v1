@@ -94,9 +94,9 @@ export default function ReservationsPage() {
       const { data, error } = await supabase
         .from("reservations")
         .select(`
-          *,
-          facility:facilities(name, location)
-        `)
+        *,
+        facility:facilities(name, location)
+      `)
         .eq("user_id", user.id)
         .gte("start_time", startOfMonth)
         .lte("start_time", endOfMonth)
@@ -110,9 +110,14 @@ export default function ReservationsPage() {
         throw new Error("No data returned from Supabase")
       }
 
-      const typedReservations: Reservation[] = data.map((reservation: any) => ({
+      const typedReservations: Reservation[] = data.map((reservation) => ({
         ...reservation,
-        facility: reservation.facility ?? null,
+        facility: reservation.facility
+          ? {
+              name: reservation.facility.name,
+              location: reservation.facility.location,
+            }
+          : null,
       }))
 
       setReservations(typedReservations)
