@@ -47,7 +47,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const lastName = formData.get("lastName") as string
 
     try {
-      await supabase.auth.signUp({
+      const { data: signUpData } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -59,18 +59,22 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
         },
       })
 
-      showToast("Account created successfully. Welcome!", "success")
-      setIsSignUpOpen(false)
-      router.push(
-        accountType === "admin"
-          ? "/admin/dashboard"
-          : accountType === "payment_collector"
-            ? "/payment_collector"
-            : accountType === "mdrr_staff"
-              ? "/mdrr-staff"
-              : "/end-user/dashboard",
-      )
-    } catch (error) {
+      if (signUpData.user) {
+        showToast("Account created successfully. Welcome!", "success")
+        setIsSignUpOpen(false)
+        router.push(
+          accountType === "admin"
+            ? "/admin/dashboard"
+            : accountType === "payment_collector"
+              ? "/payment_collector"
+              : accountType === "mdrr_staff"
+                ? "/mdrr-staff"
+                : "/end-user/dashboard",
+        )
+      } else {
+        showToast("There was a problem creating your account. Please try again.")
+      }
+    } catch {
       showToast("There was a problem creating your account. Please try again.")
     } finally {
       setIsLoading(false)
@@ -86,15 +90,17 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const password = formData.get("password") as string
 
     try {
-      const { data } = await supabase.auth.signInWithPassword({
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
+      if (signInError) throw signInError
+
       setIsSignInOpen(false)
       showToast("Welcome back!", "success")
       // Redirect based on account type
-      const accountType = data.user?.user_metadata.account_type
+      const accountType = signInData.user?.user_metadata.account_type
       router.push(
         accountType === "admin"
           ? "/admin/dashboard"
@@ -104,7 +110,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
               ? "/mdrr-staff"
               : "/end-user/dashboard",
       )
-    } catch (error) {
+    } catch {
       showToast("Invalid email or password.")
     } finally {
       setIsLoading(false)
