@@ -47,7 +47,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const lastName = formData.get("lastName") as string
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
         options: {
