@@ -6,7 +6,6 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { supabase } from "@/lib/supabase"
 import { showToast } from "@/components/ui/toast"
 import { Eye, EyeOff } from "lucide-react"
@@ -40,7 +39,6 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     setIsLoading(true)
 
     const formData = new FormData(event.currentTarget)
-    const accountType = formData.get("accountType") as string
     const email = formData.get("email") as string
     const password = formData.get("password") as string
     const firstName = formData.get("firstName") as string
@@ -54,7 +52,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
           data: {
             first_name: firstName,
             last_name: lastName,
-            account_type: accountType,
+            account_type: "end-user", // Always set to "end-user"
           },
         },
       })
@@ -62,15 +60,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
       if (signUpData.user) {
         showToast("Account created successfully. Welcome!", "success")
         setIsSignUpOpen(false)
-        router.push(
-          accountType === "admin"
-            ? "/admin/dashboard"
-            : accountType === "payment_collector"
-              ? "/payment_collector"
-              : accountType === "mdrr_staff"
-                ? "/mdrr-staff"
-                : "/end-user/dashboard",
-        )
+        router.push("/end-user/dashboard")
       } else {
         showToast("There was a problem creating your account. Please try again.")
       }
@@ -188,23 +178,9 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
             <DialogTitle>Create an Account</DialogTitle>
-            <DialogDescription>Fill in your details to create a new account.</DialogDescription>
+            <DialogDescription>Fill in your details to create a new end-user account.</DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSignUp}>
-            <div className="space-y-2">
-              <Label htmlFor="signup-account-type">Account Type</Label>
-              <Select name="accountType" required>
-                <SelectTrigger id="signup-account-type">
-                  <SelectValue placeholder="Select account type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="end-user">End User</SelectItem>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="payment_collector">Payment Collector</SelectItem>
-                  <SelectItem value="mdrr_staff">MDRR Staff</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="space-y-2">
               <Label htmlFor="signup-first-name">First Name</Label>
               <Input id="signup-first-name" name="firstName" placeholder="Enter your first name" required />
