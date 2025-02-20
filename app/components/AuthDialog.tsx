@@ -47,7 +47,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const lastName = formData.get("lastName") as string
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { error: signUpError } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -59,7 +59,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
         },
       })
 
-      if (error) throw error
+      if (signUpError) throw signUpError
 
       showToast("Account created successfully. Welcome!", "success")
       setIsSignUpOpen(false)
@@ -72,7 +72,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
               ? "/mdrr-staff"
               : "/end-user/dashboard",
       )
-    } catch {
+    } catch (error) {
       showToast("There was a problem creating your account. Please try again.")
     } finally {
       setIsLoading(false)
@@ -88,10 +88,12 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const password = formData.get("password") as string
 
     try {
-      const { data } = await supabase.auth.signInWithPassword({
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
+
+      if (signInError) throw signInError
 
       setIsSignInOpen(false)
       showToast("Welcome back!", "success")
@@ -106,7 +108,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
               ? "/mdrr-staff"
               : "/end-user/dashboard",
       )
-    } catch {
+    } catch (error) {
       showToast("Invalid email or password.")
     } finally {
       setIsLoading(false)
@@ -247,3 +249,4 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     </>
   )
 }
+
