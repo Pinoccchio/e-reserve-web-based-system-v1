@@ -47,7 +47,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const lastName = formData.get("lastName") as string
 
     try {
-      await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -59,10 +59,20 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
         },
       })
 
+      if (error) throw error
+
       showToast("Account created successfully. Welcome!", "success")
       setIsSignUpOpen(false)
-      router.push(accountType === "admin" ? "/admin/dashboard" : "/end-user/dashboard")
-    } catch {
+      router.push(
+        accountType === "admin"
+          ? "/admin/dashboard"
+          : accountType === "payment_collector"
+            ? "/payment_collector"
+            : accountType === "mdrr_staff"
+              ? "/mdrr-staff"
+              : "/end-user/dashboard",
+      )
+    } catch (error) {
       showToast("There was a problem creating your account. Please try again.")
     } finally {
       setIsLoading(false)
@@ -78,14 +88,27 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const password = formData.get("password") as string
 
     try {
-      await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
+      if (error) throw error
+
       setIsSignInOpen(false)
-      showToast("Welcome!", "success")
-    } catch {
+      showToast("Welcome back!", "success")
+      // Redirect based on account type
+      const accountType = data.user?.user_metadata.account_type
+      router.push(
+        accountType === "admin"
+          ? "/admin/dashboard"
+          : accountType === "payment_collector"
+            ? "/payment_collector"
+            : accountType === "mdrr_staff"
+              ? "/mdrr-staff"
+              : "/end-user/dashboard",
+      )
+    } catch (error) {
       showToast("Invalid email or password.")
     } finally {
       setIsLoading(false)
@@ -175,6 +198,8 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
                 <SelectContent>
                   <SelectItem value="end-user">End User</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="payment_collector">Payment Collector</SelectItem>
+                  <SelectItem value="mdrr_staff">MDRR Staff</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -224,3 +249,4 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     </>
   )
 }
+

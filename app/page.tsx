@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { Calendar, MapPin, Clock, Users, Facebook } from "lucide-react"
+import { CalendarIcon, MapPin, Clock, Users, Facebook } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase"
@@ -9,6 +9,7 @@ import { redirect } from "next/navigation"
 import { AuthDialogs } from "@/app/components/AuthDialog"
 import { VenueExploreDialog } from "@/components/VenueExploreDialog"
 import { ChatBot } from "@/components/ChatBot"
+import { ReservationCalendar } from "@/components/ReservationCalendar"
 
 async function getFeaturedVenues() {
   const { data: venues, error } = await supabase
@@ -118,6 +119,10 @@ export default async function Home() {
             </div>
           </div>
 
+          <Suspense fallback={<div>Loading reservation calendar...</div>}>
+            <ReservationCalendar />
+          </Suspense>
+
           <Suspense fallback={<div>Loading featured venues...</div>}>
             <FeaturedVenues />
           </Suspense>
@@ -127,7 +132,7 @@ export default async function Home() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
               <div className="flex flex-col items-center text-center">
                 <div className="bg-blue-100 p-3 rounded-full mb-4">
-                  <Calendar className="w-8 h-8 text-blue-600" />
+                  <CalendarIcon className="w-8 h-8 text-blue-600" />
                 </div>
                 <h3 className="text-xl font-semibold mb-2">Easy Booking</h3>
                 <p className="text-gray-600">Simple and intuitive reservation process for any type of event.</p>
@@ -233,3 +238,4 @@ async function FeaturedVenues() {
     </div>
   )
 }
+

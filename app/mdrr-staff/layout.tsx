@@ -6,7 +6,7 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Calendar, Bell, MapPin, ChevronDown, User, Menu, X, LogOut } from "lucide-react"
+import { ClipboardList, Bell, ChevronDown, User, Menu, X, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -20,12 +20,11 @@ import { supabase } from "@/lib/supabase"
 import { showToast } from "@/components/ui/toast"
 
 const menuItems = [
-  { icon: MapPin, label: "Facilities", href: "/end-user/dashboard/facilities" },
-  { icon: Calendar, label: "My Reservations", href: "/end-user/dashboard/reservation" },
-  { icon: Bell, label: "Notifications", href: "/end-user/dashboard/notification" },
+  { icon: ClipboardList, label: "Approvals", href: "/mdrr-staff/approvals" },
+  { icon: Bell, label: "Notifications", href: "/mdrr-staff/notifications" },
 ]
 
-export default function EndUserDashboardLayout({
+export default function MDRRStaffLayout({
   children,
 }: {
   children: React.ReactNode
@@ -87,7 +86,7 @@ export default function EndUserDashboardLayout({
               <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mr-2">
                 {isSidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </Button>
-              <Link href="/end-user/dashboard/facilities" className="flex items-center">
+              <Link href="/mdrr-staff/approvals" className="flex items-center">
                 <Image
                   src="/libmanan-logo.png"
                   alt="Bayan ng Libmanan Logo"
@@ -97,7 +96,7 @@ export default function EndUserDashboardLayout({
                   priority
                 />
                 <span className="ml-2 text-base md:text-xl font-semibold text-gray-800 line-clamp-1">
-                  {isMobile ? "LIBMANAN" : "LOCAL GOVERNMENT OF LIBMANAN"}
+                  {isMobile ? "LIBMANAN MDRR" : "LIBMANAN MDRR STAFF PORTAL"}
                 </span>
               </Link>
             </div>
@@ -112,7 +111,7 @@ export default function EndUserDashboardLayout({
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => router.push("/end-user/dashboard/profile")}>
+                <DropdownMenuItem onSelect={() => router.push("/mdrr-staff/profile")}>
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>

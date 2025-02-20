@@ -5,12 +5,22 @@ import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Badge } from "@/components/ui/badge"
 import { format, parseISO } from "date-fns"
-import { CalendarIcon, MapPin, AlertCircle, Building, Users, FileText, ChevronLeft, ChevronRight } from "lucide-react"
+import { CalendarIcon, MapPin, AlertCircle, Building, Users } from "lucide-react"
 import { showToast } from "@/components/ui/toast"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { EndUserCalendarAttachment } from "@/components/EndUserCalendarAttachment"
 
 interface Facility {
   name: string
@@ -27,33 +37,17 @@ interface Reservation {
   start_time: string
   end_time: string
   status: "pending" | "approved" | "declined" | "cancelled" | "completed"
-  receipt_image_url: string | null
   purpose: string | null
   number_of_attendees: number | null
   special_requests: string | null
   created_by: string
   last_updated_by: string
-  admin_action_by: string | null
-  admin_action_at: string | null
+  action_by: string | null
+  action_at: string | null
   cancellation_reason: string | null
   facility: Facility | null
+  source: "payment_approval" | "admin"
 }
-
-const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-const MONTHS = [
-  "January",
-  "February",
-  "March",
-  "April",
-  "May",
-  "June",
-  "July",
-  "August",
-  "September",
-  "October",
-  "November",
-  "December",
-]
 
 export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([])
@@ -61,18 +55,8 @@ export default function ReservationsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [userName, setUserName] = useState("")
   const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
-  const [currentDate, setCurrentDate] = useState(new Date())
-
-  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
-  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay()
-
-  const prevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
-  }
-
-  const nextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
-  }
+  const [isConfirmCancelOpen, setIsConfirmCancelOpen] = useState(false)
+  const [reservationToCancel, setReservationToCancel] = useState<Reservation | null>(null)
 
   useEffect(() => {
     fetchReservations()
@@ -88,44 +72,57 @@ export default function ReservationsPage() {
         throw new Error("No authenticated user found")
       }
 
-      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString()
-      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString()
+      const [reservationsData, paymentApprovalData] = await Promise.all([
+        supabase
+          .from("reservations")
+          .select(`
+            *,
+            facility:facilities(name, location)
+          `)
+          .eq("user_id", user.id)
+          .order("start_time", { ascending: true }),
+        supabase
+          .from("payment_collector_approval")
+          .select(`
+            *,
+            facility:facilities(name, location)
+          `)
+          .eq("user_id", user.id)
+          .order("start_time", { ascending: true }),
+      ])
 
-      const { data, error } = await supabase
-        .from("reservations")
-        .select(`
-        *,
-        facility:facilities(name, location)
-      `)
-        .eq("user_id", user.id)
-        .gte("start_time", startOfMonth)
-        .lte("start_time", endOfMonth)
-        .order("start_time", { ascending: true })
+      if (reservationsData.error) throw reservationsData.error
+      if (paymentApprovalData.error) throw paymentApprovalData.error
 
-      if (error) {
-        throw new Error(`Supabase error: ${error.message}`)
-      }
-
-      if (!data) {
-        throw new Error("No data returned from Supabase")
-      }
-
-      const typedReservations: Reservation[] = data.map((reservation) => ({
-        ...reservation,
-        facility: reservation.facility
-          ? {
-              name: reservation.facility.name,
-              location: reservation.facility.location,
-            }
-          : null,
-      }))
+      const typedReservations: Reservation[] = [
+        ...(reservationsData.data || []).map((reservation) => ({
+          ...reservation,
+          facility: reservation.facility
+            ? {
+                name: reservation.facility.name,
+                location: reservation.facility.location,
+              }
+            : null,
+          source: "admin" as const,
+        })),
+        ...(paymentApprovalData.data || []).map((reservation) => ({
+          ...reservation,
+          facility: reservation.facility
+            ? {
+                name: reservation.facility.name,
+                location: reservation.facility.location,
+              }
+            : null,
+          source: "payment_approval" as const,
+        })),
+      ]
 
       setReservations(typedReservations)
       setIsLoading(false)
       showToast(`Successfully fetched ${typedReservations.length} reservations.`, "success")
     } catch (error) {
       console.error("Error fetching reservations:", error)
-      //showToast("Failed to load reservations. Please try again.", "error")
+      showToast("Failed to load reservations. Please try again.", "error")
       setReservations([])
       setIsLoading(false)
     }
@@ -150,10 +147,24 @@ export default function ReservationsPage() {
     }
   }
 
-  const handleCancelReservation = async (id: number) => {
+  const canCancelReservation = (reservation: Reservation) => {
+    const startTime = new Date(reservation.start_time)
+    const now = new Date()
+
+    // Calculate the difference in hours
+    const hoursDifference = (startTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+
+    // Allow cancellation only if:
+    // 1. The reservation hasn't started yet
+    // 2. There's at least 24 hours before the start time
+    return hoursDifference > 24 && now < startTime
+  }
+
+  const handleCancelReservation = async (id: number, source: "payment_approval" | "admin") => {
     try {
+      const table = source === "payment_approval" ? "payment_collector_approval" : "reservations"
       const { error } = await supabase
-        .from("reservations")
+        .from(table)
         .update({
           status: "cancelled",
           cancellation_reason: `Cancelled by ${userName}`,
@@ -163,6 +174,9 @@ export default function ReservationsPage() {
       if (error) throw error
 
       showToast("Reservation cancelled successfully", "success")
+      setIsConfirmCancelOpen(false)
+      setReservationToCancel(null)
+      setSelectedReservation(null)
       fetchReservations()
     } catch (error) {
       console.error("Error cancelling reservation:", error)
@@ -189,35 +203,6 @@ export default function ReservationsPage() {
       default:
         return "bg-gray-200 text-gray-800"
     }
-  }
-
-  const renderCells = () => {
-    const cells = []
-    const today = new Date()
-    for (let i = 0; i < firstDayOfMonth; i++) {
-      cells.push(<div key={`empty-${i}`} className="p-2"></div>)
-    }
-    for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
-      const dayReservations = filteredReservations.filter(
-        (reservation) => new Date(reservation.start_time).getDate() === date.getDate(),
-      )
-      const isToday =
-        date.getDate() === today.getDate() &&
-        date.getMonth() === today.getMonth() &&
-        date.getFullYear() === today.getFullYear()
-      cells.push(
-        <div key={day} className={`p-2 border border-gray-200 ${isToday ? "bg-yellow-100 font-bold" : ""}`}>
-          <span className={`${isToday ? "text-blue-600" : ""}`}>{day}</span>
-          {dayReservations.map((reservation, index) => (
-            <div key={index} className={`text-xs mt-1 p-1 rounded ${getStatusColor(reservation.status)}`}>
-              {reservation.facility?.name}
-            </div>
-          ))}
-        </div>,
-      )
-    }
-    return cells
   }
 
   if (isLoading) {
@@ -266,29 +251,7 @@ export default function ReservationsPage() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="w-full">
-                <div className="bg-white p-4 rounded-lg shadow-md mb-6">
-                  <div className="flex justify-between items-center mb-4">
-                    <Button onClick={prevMonth} variant="outline" size="icon">
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <h2 className="text-xl font-bold">
-                      {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
-                    </h2>
-                    <Button onClick={nextMonth} variant="outline" size="icon">
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <div className="grid grid-cols-7 gap-1">
-                    {DAYS.map((day) => (
-                      <div key={day} className="font-semibold text-center p-2">
-                        {day}
-                      </div>
-                    ))}
-                    {renderCells()}
-                  </div>
-                </div>
-              </div>
+              <EndUserCalendarAttachment reservations={filteredReservations} />
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Upcoming Reservations</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -305,6 +268,9 @@ export default function ReservationsPage() {
                             {format(parseISO(reservation.start_time), "MMM d, yyyy h:mm a")} -{" "}
                             {format(parseISO(reservation.end_time), "h:mm a")}
                           </p>
+                          <p className="text-xs text-gray-400 mt-1">
+                            Source: {reservation.source === "payment_approval" ? "Payment Approval" : "Admin"}
+                          </p>
                         </div>
                         <Badge className={`${getStatusColor(reservation.status)} mt-2`}>
                           {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
@@ -320,93 +286,130 @@ export default function ReservationsPage() {
       </Card>
 
       <Dialog open={!!selectedReservation} onOpenChange={() => setSelectedReservation(null)}>
-        <DialogContent className="max-w-3xl w-[90vw]">
+        <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Reservation Details</DialogTitle>
+            <DialogTitle className="text-xl">Reservation Details</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[80vh]">
-            {selectedReservation && (
-              <div className="space-y-6 p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-6">
+          {selectedReservation && (
+            <div className="space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-base font-semibold flex items-center mb-3">
+                    <Building className="mr-2 h-5 w-5" />
+                    Facility Information
+                  </h3>
+                  <div className="space-y-2 pl-7">
                     <div>
-                      <h3 className="font-semibold mb-3 flex items-center">
-                        <Building className="mr-2 h-5 w-5" />
-                        Facility Information
-                      </h3>
-                      <div className="space-y-2">
-                        <p className="flex items-center">
-                          <span className="font-medium">Name:</span>
-                          <span className="ml-2">{selectedReservation.facility?.name ?? "Unknown Facility"}</span>
-                        </p>
-                        <p className="flex items-center">
-                          <MapPin className="mr-2 h-4 w-4 text-gray-500" />
-                          {selectedReservation.facility?.location ?? "Unknown Location"}
-                        </p>
-                      </div>
+                      <span className="font-medium">Name: </span>
+                      {selectedReservation.facility?.name}
                     </div>
-
-                    <div>
-                      <h3 className="font-semibold mb-3 flex items-center">
-                        <CalendarIcon className="mr-2 h-5 w-5" />
-                        Booking Details
-                      </h3>
-                      <div className="space-y-2">
-                        <p>
-                          <span className="font-medium">Start:</span>{" "}
-                          {format(parseISO(selectedReservation.start_time), "MMMM d, yyyy h:mm a")}
-                        </p>
-                        <p>
-                          <span className="font-medium">End:</span>{" "}
-                          {format(parseISO(selectedReservation.end_time), "MMMM d, yyyy h:mm a")}
-                        </p>
-                        <p>
-                          <span className="font-medium">Purpose:</span> {selectedReservation.purpose || "N/A"}
-                        </p>
-                        <p className="flex items-center">
-                          <Users className="mr-2 h-4 w-4 text-gray-500" />
-                          <span className="font-medium">Attendees:</span>{" "}
-                          <span className="ml-1">{selectedReservation.number_of_attendees || "N/A"}</span>
-                        </p>
-                      </div>
+                    <div className="flex items-start">
+                      <MapPin className="mr-2 h-4 w-4 mt-0.5 flex-shrink-0" />
+                      <span>{selectedReservation.facility?.location}</span>
                     </div>
-
-                    {selectedReservation.special_requests && (
-                      <div>
-                        <h3 className="font-semibold mb-2">Special Requests</h3>
-                        <p className="text-gray-600">{selectedReservation.special_requests}</p>
-                      </div>
-                    )}
                   </div>
+                </div>
 
-                  {selectedReservation.receipt_image_url && (
+                <div>
+                  <h3 className="text-base font-semibold flex items-center mb-3">
+                    <CalendarIcon className="mr-2 h-5 w-5" />
+                    Booking Details
+                  </h3>
+                  <div className="space-y-2 pl-7">
                     <div>
-                      <h3 className="font-semibold mb-3 flex items-center">
-                        <FileText className="mr-2 h-5 w-5" />
-                        Receipt
-                      </h3>
-                      <div className="rounded-lg overflow-hidden border">
-                        <img
-                          src={selectedReservation.receipt_image_url || "/placeholder.svg"}
-                          alt="Receipt"
-                          className="w-full h-auto object-contain"
-                        />
-                      </div>
+                      <span className="font-medium">Start: </span>
+                      {format(parseISO(selectedReservation.start_time), "MMMM d, yyyy h:mm a")}
                     </div>
+                    <div>
+                      <span className="font-medium">End: </span>
+                      {format(parseISO(selectedReservation.end_time), "MMMM d, yyyy h:mm a")}
+                    </div>
+                    <div>
+                      <span className="font-medium">Purpose: </span>
+                      {selectedReservation.purpose || "N/A"}
+                    </div>
+                    <div className="flex items-center">
+                      <Users className="mr-2 h-4 w-4" />
+                      <span className="font-medium">Attendees: </span>
+                      <span className="ml-1">{selectedReservation.number_of_attendees || "N/A"}</span>
+                    </div>
+                    <div>
+                      <span className="font-medium">Source: </span>
+                      {selectedReservation.source === "payment_approval" ? "Payment Approval" : "Admin"}
+                    </div>
+                  </div>
+                </div>
+
+                {selectedReservation.special_requests && (
+                  <div>
+                    <h3 className="text-base font-semibold mb-2">Special Requests</h3>
+                    <p className="text-gray-600 pl-7">{selectedReservation.special_requests}</p>
+                  </div>
+                )}
+              </div>
+
+              {selectedReservation.status === "pending" && (
+                <div className="pt-4">
+                  {canCancelReservation(selectedReservation) ? (
+                    <Button
+                      variant="destructive"
+                      className="w-full"
+                      onClick={() => {
+                        setReservationToCancel(selectedReservation)
+                        setIsConfirmCancelOpen(true)
+                      }}
+                    >
+                      Cancel Reservation
+                    </Button>
+                  ) : (
+                    <p className="text-center text-sm text-red-600">
+                      This reservation cannot be cancelled as it is within 24 hours of the start time.
+                    </p>
                   )}
                 </div>
-              </div>
-            )}
-          </ScrollArea>
-          {selectedReservation && selectedReservation.status === "pending" && (
-            <DialogFooter>
-              <Button variant="destructive" onClick={() => handleCancelReservation(selectedReservation.id)}>
-                Cancel Reservation
-              </Button>
-            </DialogFooter>
+              )}
+            </div>
           )}
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={isConfirmCancelOpen} onOpenChange={setIsConfirmCancelOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Cancel Reservation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to cancel this reservation? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {reservationToCancel && (
+            <div className="mt-4 p-4 bg-muted rounded-lg">
+              <div className="font-medium">{reservationToCancel.facility?.name}</div>
+              <div className="text-sm text-muted-foreground">
+                {format(parseISO(reservationToCancel.start_time), "MMMM d, yyyy h:mm a")} -{" "}
+                {format(parseISO(reservationToCancel.end_time), "h:mm a")}
+              </div>
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setIsConfirmCancelOpen(false)
+                setReservationToCancel(null)
+              }}
+            >
+              No, keep reservation
+            </AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() =>
+                reservationToCancel && handleCancelReservation(reservationToCancel.id, reservationToCancel.source)
+              }
+            >
+              Yes, cancel reservation
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

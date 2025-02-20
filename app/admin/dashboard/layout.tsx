@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import Image from "next/image"
@@ -15,6 +17,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { supabase } from "@/lib/supabase"
+import { showToast } from "@/components/ui/toast"
 
 const menuItems = [
   { icon: Home, label: "Dashboard", href: "/admin/dashboard" },
@@ -65,11 +68,14 @@ export default function DashboardLayout({
   }, [router])
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      console.error("Error signing out:", error)
-    } else {
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+      showToast("Signed out successfully", "success")
       router.push("/")
+    } catch (error) {
+      console.error("Error signing out:", error)
+      showToast("Error signing out. Please try again.", "error")
     }
   }
 
@@ -83,7 +89,7 @@ export default function DashboardLayout({
               <Button variant="ghost" size="icon" onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="mr-2">
                 {isSidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </Button>
-              <Link href="/" className="flex items-center">
+              <Link href="/admin/dashboard" className="flex items-center">
                 <Image
                   src="/libmanan-logo.png"
                   alt="Bayan ng Libmanan Logo"
@@ -108,7 +114,7 @@ export default function DashboardLayout({
               <DropdownMenuContent align="end" className="w-56">
                 <DropdownMenuLabel>My Account</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => router.push("/admin/dashboard/profile")}>
                   <User className="mr-2 h-4 w-4" />
                   <span>Profile</span>
                 </DropdownMenuItem>

@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { showToast } from "@/components/ui/toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { format } from "date-fns"
 import { Calendar, MapPin, Building, Users, AlertCircle, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { showToast } from "@/components/ui/toast"
 
 interface Facility {
   id: number
@@ -37,7 +37,7 @@ interface Reservation {
   cancellation_reason: string | null
 }
 
-export default function ReservationsPage() {
+export default function MDRRStaffApprovalsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState<string>("")
@@ -56,11 +56,19 @@ export default function ReservationsPage() {
           *,
           facility:facilities(id, name, location)
         `)
+        .eq("facility.name", "MO Conference Room")
         .order("created_at", { ascending: false })
 
       if (error) throw error
 
-      setReservations(data as Reservation[])
+      if (data) {
+        const validReservations = data.filter(
+          (reservation): reservation is Reservation => reservation.facility !== null,
+        )
+        setReservations(validReservations)
+      } else {
+        setReservations([])
+      }
       setIsLoading(false)
     } catch (error) {
       console.error("Error fetching reservations:", error)
@@ -74,6 +82,19 @@ export default function ReservationsPage() {
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
+
+      // Check if the user is MDRR staff
+      const { data: userDetails, error: userDetailsError } = await supabase
+        .from("users")
+        .select("account_type")
+        .eq("id", userData.user?.id)
+        .single()
+
+      if (userDetailsError) throw userDetailsError
+
+      if (userDetails.account_type !== "mdrr_staff") {
+        throw new Error("Only MDRR staff can perform this action")
+      }
 
       // Fetch the reservation data first
       const { data: reservationData, error: reservationFetchError } = await supabase
@@ -110,7 +131,7 @@ export default function ReservationsPage() {
         facility_id: reservationData.facility_id,
         action: `reservation_${newStatus}`,
         action_by: userData.user.id,
-        action_by_role: "admin",
+        action_by_role: "mdrr_staff",
         target_user_id: reservationData.user_id,
         status: newStatus,
         details: JSON.stringify({
@@ -128,7 +149,7 @@ export default function ReservationsPage() {
       // Create notification for the end-user (booker)
       const endUserNotificationData = {
         user_id: reservationData.user_id,
-        message: `Your reservation for ${reservationData.facility.name} has been ${newStatus} by the admin.`,
+        message: `Your reservation for ${reservationData.facility.name} has been ${newStatus} by the MDRR staff.`,
         action_type: `reservation_${newStatus}`,
         related_id: reservationId,
       }
@@ -137,17 +158,19 @@ export default function ReservationsPage() {
 
       if (endUserNotificationError) throw endUserNotificationError
 
-      // Create notification for the admin
-      const adminNotificationData = {
+      // Create notification for the MDRR staff
+      const mdrrStaffNotificationData = {
         user_id: userData.user.id,
         message: `You have ${newStatus} the reservation for ${reservationData.facility.name} by ${reservationData.booker_name}.`,
         action_type: `reservation_${newStatus}`,
         related_id: reservationId,
       }
 
-      const { error: adminNotificationError } = await supabase.from("notifications").insert(adminNotificationData)
+      const { error: mdrrStaffNotificationError } = await supabase
+        .from("notifications")
+        .insert(mdrrStaffNotificationData)
 
-      if (adminNotificationError) throw adminNotificationError
+      if (mdrrStaffNotificationError) throw mdrrStaffNotificationError
 
       setReservations(
         reservations.map((reservation) =>
@@ -206,7 +229,7 @@ export default function ReservationsPage() {
 
   return (
     <div className="space-y-6 p-6 max-w-full">
-      <h1 className="text-3xl font-bold">Admin Reservations</h1>
+      <h1 className="text-3xl font-bold">MDRR Staff Portal</h1>
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
           <strong className="font-bold">Error: </strong>

@@ -7,12 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { showToast } from "@/components/ui/toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { format } from "date-fns"
 import { Calendar, MapPin, Building, Users, AlertCircle, Search } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { showToast } from "@/components/ui/toast"
 
 interface Facility {
   id: number
@@ -20,38 +20,38 @@ interface Facility {
   location: string
 }
 
-interface Reservation {
-  id: string
-  created_at: string
-  start_time: string
-  end_time: string
-  purpose: string | null
-  number_of_attendees: number | null
-  special_requests: string | null
-  status: "pending" | "approved" | "declined" | "cancelled" | "completed"
+interface PaymentApproval {
+  id: number
+  facility_id: number
   booker_name: string
   booker_email: string
   booker_phone: string
-  facility_id: number
+  start_time: string
+  end_time: string
+  status: "pending" | "approved" | "declined" | "cancelled" | "completed"
+  purpose: string | null
+  number_of_attendees: number | null
+  special_requests: string | null
+  created_at: string
+  user_id: string
   facility: Facility
-  cancellation_reason: string | null
 }
 
-export default function ReservationsPage() {
-  const [reservations, setReservations] = useState<Reservation[]>([])
+export default function PaymentCollectorApprovalsPage() {
+  const [approvals, setApprovals] = useState<PaymentApproval[]>([])
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    fetchReservations()
+    fetchApprovals()
   }, [])
 
-  async function fetchReservations() {
+  async function fetchApprovals() {
     try {
       const { data, error } = await supabase
-        .from("reservations")
+        .from("payment_collector_approval")
         .select(`
           *,
           facility:facilities(id, name, location)
@@ -60,64 +60,102 @@ export default function ReservationsPage() {
 
       if (error) throw error
 
-      setReservations(data as Reservation[])
+      setApprovals(data as PaymentApproval[])
       setIsLoading(false)
     } catch (error) {
-      console.error("Error fetching reservations:", error)
-      setError("Failed to fetch reservations. Please try again.")
-      setReservations([])
+      console.error("Error fetching approvals:", error)
+      setError("Failed to fetch approvals. Please try again.")
+      setApprovals([])
       setIsLoading(false)
     }
   }
 
-  const handleStatusChange = async (reservationId: string, newStatus: "approved" | "declined" | "cancelled") => {
+  const handleStatusChange = async (approvalId: number, newStatus: "approved" | "declined") => {
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
 
-      // Fetch the reservation data first
-      const { data: reservationData, error: reservationFetchError } = await supabase
-        .from("reservations")
+      // Fetch the approval data first
+      const { data: approvalData, error: approvalFetchError } = await supabase
+        .from("payment_collector_approval")
         .select(`*, facility:facilities(name)`)
-        .eq("id", reservationId)
+        .eq("id", approvalId)
         .single()
 
-      if (reservationFetchError) throw reservationFetchError
+      if (approvalFetchError) throw approvalFetchError
 
-      if (!reservationData) throw new Error("Reservation data not found")
+      if (!approvalData) throw new Error("Approval data not found")
 
       const updateData = {
         status: newStatus,
-        admin_action_by: userData.user?.id,
-        admin_action_at: new Date().toISOString(),
+        action_by: userData.user?.id,
+        action_at: new Date().toISOString(),
       }
 
-      // Update the reservations table
-      const { data: updatedReservation, error: reservationUpdateError } = await supabase
-        .from("reservations")
+      // Update the payment_collector_approval table
+      const { error: approvalUpdateError } = await supabase
+        .from("payment_collector_approval")
         .update(updateData)
-        .eq("id", reservationId)
-        .select()
-        .single()
+        .eq("id", approvalId)
 
-      if (reservationUpdateError) throw reservationUpdateError
+      if (approvalUpdateError) throw approvalUpdateError
 
-      if (!updatedReservation) throw new Error("Failed to update reservation")
+      // If approved, insert into reservations table with status "pending"
+      if (newStatus === "approved") {
+        const { error: reservationError } = await supabase.from("reservations").insert({
+          user_id: approvalData.user_id,
+          facility_id: approvalData.facility_id,
+          booker_name: approvalData.booker_name,
+          booker_email: approvalData.booker_email,
+          booker_phone: approvalData.booker_phone,
+          start_time: approvalData.start_time,
+          end_time: approvalData.end_time,
+          status: "pending", // Set to pending for admin review
+          purpose: approvalData.purpose,
+          number_of_attendees: approvalData.number_of_attendees,
+          special_requests: approvalData.special_requests,
+          created_by: userData.user.id,
+          last_updated_by: userData.user.id,
+        })
+
+        if (reservationError) throw reservationError
+
+        // Create notification for the admin
+        const { data: adminData, error: adminError } = await supabase
+          .from("users")
+          .select("id")
+          .eq("account_type", "admin")
+          .limit(1)
+          .single()
+
+        if (adminError) throw adminError
+
+        const adminNotificationData = {
+          user_id: adminData.id,
+          message: `Payment collector ${userData.user.email} has approved a booking for ${approvalData.facility.name} by ${approvalData.booker_name}. It requires your review.`,
+          action_type: "payment_collector_approved",
+          related_id: approvalId,
+        }
+
+        const { error: adminNotificationError } = await supabase.from("notifications").insert(adminNotificationData)
+
+        if (adminNotificationError) throw adminNotificationError
+      }
 
       // Add transaction history
       const transactionData = {
-        user_id: reservationData.user_id,
-        facility_id: reservationData.facility_id,
-        action: `reservation_${newStatus}`,
+        user_id: approvalData.user_id,
+        facility_id: approvalData.facility_id,
+        action: `booking_${newStatus}`,
         action_by: userData.user.id,
-        action_by_role: "admin",
-        target_user_id: reservationData.user_id,
+        action_by_role: "payment_collector",
+        target_user_id: approvalData.user_id,
         status: newStatus,
         details: JSON.stringify({
-          reservation_id: reservationId,
-          facility_name: reservationData.facility.name,
-          start_time: reservationData.start_time,
-          end_time: reservationData.end_time,
+          approval_id: approvalId,
+          facility_name: approvalData.facility.name,
+          start_time: approvalData.start_time,
+          end_time: approvalData.end_time,
         }),
       }
 
@@ -125,56 +163,56 @@ export default function ReservationsPage() {
 
       if (transactionError) throw transactionError
 
-      // Create notification for the end-user (booker)
+      // Create notification for the end-user
       const endUserNotificationData = {
-        user_id: reservationData.user_id,
-        message: `Your reservation for ${reservationData.facility.name} has been ${newStatus} by the admin.`,
-        action_type: `reservation_${newStatus}`,
-        related_id: reservationId,
+        user_id: approvalData.user_id,
+        message:
+          newStatus === "approved"
+            ? `Your booking for ${approvalData.facility.name} has been approved by the payment collector and is pending final admin approval.`
+            : `Your booking for ${approvalData.facility.name} has been declined.`,
+        action_type: `booking_${newStatus}`,
+        related_id: approvalId,
       }
 
       const { error: endUserNotificationError } = await supabase.from("notifications").insert(endUserNotificationData)
 
       if (endUserNotificationError) throw endUserNotificationError
 
-      // Create notification for the admin
-      const adminNotificationData = {
+      // Create notification for the payment collector
+      const paymentCollectorNotificationData = {
         user_id: userData.user.id,
-        message: `You have ${newStatus} the reservation for ${reservationData.facility.name} by ${reservationData.booker_name}.`,
-        action_type: `reservation_${newStatus}`,
-        related_id: reservationId,
+        message: `You have ${newStatus} the booking for ${approvalData.facility.name} by ${approvalData.booker_name}.`,
+        action_type: `booking_${newStatus}`,
+        related_id: approvalId,
       }
 
-      const { error: adminNotificationError } = await supabase.from("notifications").insert(adminNotificationData)
+      const { error: paymentCollectorNotificationError } = await supabase
+        .from("notifications")
+        .insert(paymentCollectorNotificationData)
 
-      if (adminNotificationError) throw adminNotificationError
+      if (paymentCollectorNotificationError) throw paymentCollectorNotificationError
 
-      setReservations(
-        reservations.map((reservation) =>
-          reservation.id === reservationId ? { ...reservation, ...updateData } : reservation,
-        ),
+      setApprovals(
+        approvals.map((approval) => (approval.id === approvalId ? { ...approval, ...updateData } : approval)),
       )
 
-      showToast(`Reservation has been ${newStatus}.`, "success")
+      showToast(`Booking has been ${newStatus}.`, "success")
     } catch (error) {
-      console.error("Error updating reservation status:", error)
-      showToast(
-        `Error updating reservation status: ${error instanceof Error ? error.message : "Unknown error"}`,
-        "error",
-      )
+      console.error("Error updating approval status:", error)
+      showToast("There was an error updating the approval status.", "error")
     }
   }
 
-  const filteredReservations = useMemo(() => {
-    return reservations
-      .filter((reservation) => statusFilter === "all" || reservation.status === statusFilter)
-      .filter((reservation) =>
+  const filteredApprovals = useMemo(() => {
+    return approvals
+      .filter((approval) => statusFilter === "all" || approval.status === statusFilter)
+      .filter((approval) =>
         searchQuery
-          ? reservation.booker_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            reservation.facility.name.toLowerCase().includes(searchQuery.toLowerCase())
+          ? approval.booker_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            approval.facility.name.toLowerCase().includes(searchQuery.toLowerCase())
           : true,
       )
-  }, [reservations, statusFilter, searchQuery])
+  }, [approvals, statusFilter, searchQuery])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -198,7 +236,7 @@ export default function ReservationsPage() {
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading reservations...</p>
+          <p className="text-gray-600 text-lg">Loading approvals...</p>
         </div>
       </div>
     )
@@ -206,7 +244,7 @@ export default function ReservationsPage() {
 
   return (
     <div className="space-y-6 p-6 max-w-full">
-      <h1 className="text-3xl font-bold">Admin Reservations</h1>
+      <h1 className="text-3xl font-bold">Payment Collector Approvals</h1>
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
           <strong className="font-bold">Error: </strong>
@@ -242,7 +280,7 @@ export default function ReservationsPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             </div>
           </div>
-          {filteredReservations.length > 0 ? (
+          {filteredApprovals.length > 0 ? (
             <div className="overflow-x-auto -mx-6">
               <div className="inline-block min-w-full align-middle">
                 <div className="overflow-hidden border border-gray-200 sm:rounded-lg">
@@ -258,15 +296,15 @@ export default function ReservationsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {filteredReservations.map((reservation) => (
-                        <TableRow key={reservation.id}>
-                          <TableCell className="font-medium">{reservation.booker_name}</TableCell>
-                          <TableCell>{reservation.facility.name}</TableCell>
-                          <TableCell>{format(new Date(reservation.start_time), "MMM d, yyyy h:mm a")}</TableCell>
-                          <TableCell>{format(new Date(reservation.end_time), "MMM d, yyyy h:mm a")}</TableCell>
+                      {filteredApprovals.map((approval) => (
+                        <TableRow key={approval.id}>
+                          <TableCell className="font-medium">{approval.booker_name}</TableCell>
+                          <TableCell>{approval.facility.name}</TableCell>
+                          <TableCell>{format(new Date(approval.start_time), "MMM d, yyyy h:mm a")}</TableCell>
+                          <TableCell>{format(new Date(approval.end_time), "MMM d, yyyy h:mm a")}</TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={getStatusColor(reservation.status)}>
-                              {reservation.status}
+                            <Badge variant="outline" className={getStatusColor(approval.status)}>
+                              {approval.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
@@ -278,7 +316,7 @@ export default function ReservationsPage() {
                               </DialogTrigger>
                               <DialogContent className="max-w-4xl w-[90vw]">
                                 <DialogHeader>
-                                  <DialogTitle>Reservation Details</DialogTitle>
+                                  <DialogTitle>Approval Details</DialogTitle>
                                 </DialogHeader>
                                 <ScrollArea className="max-h-[80vh]">
                                   <div className="space-y-6 p-6">
@@ -288,13 +326,13 @@ export default function ReservationsPage() {
                                           <h3 className="font-semibold mb-2">Booker Information</h3>
                                           <div className="space-y-2">
                                             <p>
-                                              <strong>Name:</strong> {reservation.booker_name}
+                                              <strong>Name:</strong> {approval.booker_name}
                                             </p>
                                             <p>
-                                              <strong>Email:</strong> {reservation.booker_email}
+                                              <strong>Email:</strong> {approval.booker_email}
                                             </p>
                                             <p>
-                                              <strong>Phone:</strong> {reservation.booker_phone}
+                                              <strong>Phone:</strong> {approval.booker_phone}
                                             </p>
                                           </div>
                                         </div>
@@ -305,11 +343,11 @@ export default function ReservationsPage() {
                                           </h3>
                                           <div className="space-y-2">
                                             <p>
-                                              <strong>Name:</strong> {reservation.facility.name}
+                                              <strong>Name:</strong> {approval.facility.name}
                                             </p>
                                             <p className="flex items-center">
                                               <MapPin className="mr-2 h-4 w-4 text-gray-500" />
-                                              {reservation.facility.location}
+                                              {approval.facility.location}
                                             </p>
                                           </div>
                                         </div>
@@ -323,55 +361,39 @@ export default function ReservationsPage() {
                                           <div className="space-y-2">
                                             <p>
                                               <strong>Start:</strong>{" "}
-                                              {format(new Date(reservation.start_time), "MMMM d, yyyy h:mm a")}
+                                              {format(new Date(approval.start_time), "MMMM d, yyyy h:mm a")}
                                             </p>
                                             <p>
                                               <strong>End:</strong>{" "}
-                                              {format(new Date(reservation.end_time), "MMMM d, yyyy h:mm a")}
+                                              {format(new Date(approval.end_time), "MMMM d, yyyy h:mm a")}
                                             </p>
                                             <p>
-                                              <strong>Purpose:</strong> {reservation.purpose || "N/A"}
+                                              <strong>Purpose:</strong> {approval.purpose || "N/A"}
                                             </p>
                                             <p className="flex items-center">
                                               <Users className="mr-2 h-4 w-4 text-gray-500" />
-                                              <strong>Attendees:</strong> {reservation.number_of_attendees || "N/A"}
+                                              <strong>Attendees:</strong> {approval.number_of_attendees || "N/A"}
                                             </p>
                                             <p>
-                                              <strong>Special Requests:</strong> {reservation.special_requests || "N/A"}
+                                              <strong>Special Requests:</strong> {approval.special_requests || "N/A"}
                                             </p>
                                           </div>
                                         </div>
-                                        {reservation.cancellation_reason && (
-                                          <div>
-                                            <h3 className="font-semibold mb-2">Cancellation Information</h3>
-                                            <p className="text-gray-600">{reservation.cancellation_reason}</p>
-                                          </div>
-                                        )}
                                       </div>
                                     </div>
-                                    {reservation.status === "pending" && (
+                                    {approval.status === "pending" && (
                                       <div className="flex justify-end space-x-2 mt-4">
                                         <Button
-                                          onClick={() => handleStatusChange(reservation.id, "approved")}
+                                          onClick={() => handleStatusChange(approval.id, "approved")}
                                           variant="default"
                                         >
                                           Approve
                                         </Button>
                                         <Button
-                                          onClick={() => handleStatusChange(reservation.id, "declined")}
+                                          onClick={() => handleStatusChange(approval.id, "declined")}
                                           variant="destructive"
                                         >
                                           Decline
-                                        </Button>
-                                      </div>
-                                    )}
-                                    {reservation.status === "approved" && (
-                                      <div className="flex justify-end space-x-2 mt-4">
-                                        <Button
-                                          onClick={() => handleStatusChange(reservation.id, "cancelled")}
-                                          variant="destructive"
-                                        >
-                                          Cancel
                                         </Button>
                                       </div>
                                     )}
@@ -390,10 +412,10 @@ export default function ReservationsPage() {
           ) : (
             <div className="text-center py-12">
               <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">No reservations found</h3>
+              <h3 className="mt-4 text-lg font-semibold text-gray-900">No approvals found</h3>
               <p className="mt-2 text-sm text-gray-500">
                 {statusFilter === "all"
-                  ? "There are no reservations at this time."
+                  ? "There are no reservations requiring approval at this time."
                   : `There are no ${statusFilter} reservations.`}
               </p>
             </div>

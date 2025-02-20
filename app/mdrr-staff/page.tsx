@@ -3,11 +3,11 @@
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
 
-export default function EndUserDashboard() {
+export default function MDRRStaffDashboard() {
   const router = useRouter()
 
   useEffect(() => {
-    router.push("/end-user/dashboard/facilities")
+    router.push("/mdrr-staff/approvals")
   }, [router])
 
   return null

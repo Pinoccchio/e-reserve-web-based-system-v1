@@ -1,52 +1,53 @@
-"use client";
+"use client"
 
-import React, { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
-import { format } from "date-fns";
-import { CalendarIcon, Upload } from "lucide-react";
-import { cn } from "@/lib/utils";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { supabase } from "@/lib/supabase";
-import { showToast } from "@/components/ui/toast";
-import { v4 as uuidv4 } from "uuid";
+import React, { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { CalendarIcon } from "lucide-react"
+import { cn } from "@/lib/utils"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Textarea } from "@/components/ui/textarea"
+import { supabase } from "@/lib/supabase"
+import { showToast } from "@/components/ui/toast"
 
 interface Facility {
-  id: number;
-  name: string;
-  description: string;
-  capacity: number;
-  type: string;
-  price_per_hour: number;
+  id: number
+  name: string
+  description: string
+  capacity: number
+  type: string
+  price_per_hour: number
+  payment_collector_id: string
 }
 
 interface PageProps {
   params: Promise<{
-    id: string;
-  }>;
+    id: string
+  }>
 }
 
+const SPECIAL_VENUES = ["SK Building", "Cultural Center", "Sports Complex"]
+
 export default function BookingPage({ params }: PageProps) {
-  const { id: facilityId } = React.use(params);
-  const [facility, setFacility] = useState<Facility | null>(null);
-  const [startDate, setStartDate] = useState<Date>();
-  const [endDate, setEndDate] = useState<Date>();
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
-  const [bookerName, setBookerName] = useState("");
-  const [bookerEmail, setBookerEmail] = useState("");
-  const [bookerPhone, setBookerPhone] = useState("");
-  const [purpose, setPurpose] = useState("");
-  const [numberOfAttendees, setNumberOfAttendees] = useState("");
-  const [specialRequests, setSpecialRequests] = useState("");
-  const [receiptImage, setReceiptImage] = useState<File | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const router = useRouter();
+  const { id: facilityId } = React.use(params)
+  const [facility, setFacility] = useState<Facility | null>(null)
+  const [startDate, setStartDate] = useState<Date>()
+  const [endDate, setEndDate] = useState<Date>()
+  const [startTime, setStartTime] = useState("")
+  const [endTime, setEndTime] = useState("")
+  const [bookerName, setBookerName] = useState("")
+  const [bookerEmail, setBookerEmail] = useState("")
+  const [bookerPhone, setBookerPhone] = useState("")
+  const [purpose, setPurpose] = useState("")
+  const [numberOfAttendees, setNumberOfAttendees] = useState("")
+  const [specialRequests, setSpecialRequests] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const router = useRouter()
 
   useEffect(() => {
     const fetchFacilityAndUserData = async () => {
@@ -56,147 +57,117 @@ export default function BookingPage({ params }: PageProps) {
           .from("facilities")
           .select("*")
           .eq("id", facilityId)
-          .single();
+          .single()
 
-        if (facilityError) throw facilityError;
+        if (facilityError) throw facilityError
 
         // Set facility state only if data is returned
         if (facilityData) {
-          setFacility(facilityData);
+          setFacility(facilityData)
         }
 
         // Fetch user data
-        const { data: userData, error: userError } = await supabase.auth.getUser();
+        const { data: userData, error: userError } = await supabase.auth.getUser()
 
-        if (userError) throw userError;
+        if (userError) throw userError
 
         if (userData?.user) {
           const { data: profileData, error: profileError } = await supabase
             .from("users")
             .select("first_name, last_name, email")
             .eq("id", userData.user.id)
-            .single();
+            .single()
 
-          if (profileError) throw profileError;
+          if (profileError) throw profileError
 
           if (profileData) {
-            setBookerName(`${profileData.first_name} ${profileData.last_name}`);
-            setBookerEmail(profileData.email);
+            setBookerName(`${profileData.first_name} ${profileData.last_name}`)
+            setBookerEmail(profileData.email)
           }
         }
       } catch (error) {
-        console.error("Error fetching data:", error);
-        showToast("Failed to fetch necessary data. Please try again.", "error");
+        console.error("Error fetching data:", error)
+        showToast("Failed to fetch necessary data. Please try again.", "error")
       }
-    };
-
-    fetchFacilityAndUserData();
-  }, [facilityId]);
-
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setReceiptImage(e.target.files[0]);
-    }
-  };
-
-  const uploadImage = async (file: File) => {
-    const fileExt = file.name.split(".").pop();
-    const fileName = `${uuidv4()}.${fileExt}`;
-    const filePath = `receipts/${fileName}`;
-
-    const { error: uploadError } = await supabase.storage.from("receipts").upload(filePath, file);
-
-    if (uploadError) {
-      throw uploadError;
     }
 
-    const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(filePath);
-    return urlData.publicUrl;
-  };
+    fetchFacilityAndUserData()
+  }, [facilityId])
 
   const checkOverlappingBookings = async (facilityId: number, startTime: string, endTime: string) => {
+    const table = SPECIAL_VENUES.includes(facility?.name || "") ? "payment_collector_approval" : "reservations"
     const { data, error } = await supabase
-      .from("reservations")
-      .select("id")
+      .from(table)
+      .select("id, status")
       .eq("facility_id", facilityId)
       .lte("start_time", endTime)
       .gte("end_time", startTime)
-      .not("status", "eq", "cancelled");
+      .in("status", ["approved", "pending"])
 
     if (error) {
-      console.error("Error checking overlapping bookings:", error);
-      return true; // Assume there's a conflict if we can't check
+      console.error("Error checking overlapping bookings:", error)
+      return true // Assume there's a conflict if we can't check
     }
 
-    return data.length > 0; // Returns true if there are overlapping bookings
-  };
+    return data.length > 0 // Returns true if there are overlapping approved or pending bookings
+  }
 
   const validateDateTimeInputs = (startDate: Date, endDate: Date, startTime: string, endTime: string) => {
-    const start = new Date(startDate);
-    start.setHours(Number.parseInt(startTime.split(":")[0]), Number.parseInt(startTime.split(":")[1]));
+    const start = new Date(startDate)
+    start.setHours(Number.parseInt(startTime.split(":")[0]), Number.parseInt(startTime.split(":")[1]))
 
-    const end = new Date(endDate);
-    end.setHours(Number.parseInt(endTime.split(":")[0]), Number.parseInt(endTime.split(":")[1]));
+    const end = new Date(endDate)
+    end.setHours(Number.parseInt(endTime.split(":")[0]), Number.parseInt(endTime.split(":")[1]))
 
-    const now = new Date();
+    const now = new Date()
 
     if (start < now) {
-      showToast("Start date and time cannot be in the past", "error");
-      return false;
+      showToast("Start date and time cannot be in the past", "error")
+      return false
     }
 
     if (end <= start) {
-      showToast("End date and time must be after the start date and time", "error");
-      return false;
+      showToast("End date and time must be after the start date and time", "error")
+      return false
     }
 
-    return true;
-  };
+    return true
+  }
 
   const handleStartDateSelect = (date: Date | undefined) => {
-    setStartDate(date);
+    setStartDate(date)
     if (date && endDate && date > endDate) {
-      setEndDate(undefined);
-      showToast("End date must be after the start date", "error");
+      setEndDate(undefined)
+      showToast("End date must be after the start date", "error")
     }
-  };
+  }
 
   const handleEndDateSelect = (date: Date | undefined) => {
     if (date && startDate && date < startDate) {
-      showToast("End date must be after the start date", "error");
+      showToast("End date must be after the start date", "error")
     } else {
-      setEndDate(date);
+      setEndDate(date)
     }
-  };
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (
-      !startDate ||
-      !endDate ||
-      !startTime ||
-      !endTime ||
-      !receiptImage ||
-      !bookerName ||
-      !bookerEmail ||
-      !bookerPhone ||
-      !facility
-    ) {
-      showToast("Please fill in all required fields and upload a receipt", "error");
-      return;
+    e.preventDefault()
+    if (!startDate || !endDate || !startTime || !endTime || !bookerName || !bookerEmail || !bookerPhone || !facility) {
+      showToast("Please fill in all required fields", "error")
+      return
     }
 
     if (!validateDateTimeInputs(startDate, endDate, startTime, endTime)) {
-      return;
+      return
     }
 
-    setIsLoading(true);
+    setIsLoading(true)
 
-    const startDateTime = new Date(startDate);
-    startDateTime.setHours(Number.parseInt(startTime.split(":")[0]), Number.parseInt(startTime.split(":")[1]));
+    const startDateTime = new Date(startDate)
+    startDateTime.setHours(Number(startTime.split(":")[0]), Number(startTime.split(":")[1]))
 
-    const endDateTime = new Date(endDate);
-    endDateTime.setHours(Number.parseInt(endTime.split(":")[0]), Number.parseInt(endTime.split(":")[1]));
+    const endDateTime = new Date(endDate)
+    endDateTime.setHours(Number(endTime.split(":")[0]), Number(endTime.split(":")[1]))
 
     try {
       // Check for overlapping bookings
@@ -204,20 +175,18 @@ export default function BookingPage({ params }: PageProps) {
         facility.id,
         startDateTime.toISOString(),
         endDateTime.toISOString(),
-      );
+      )
 
       if (hasOverlap) {
-        showToast("This time slot is already booked. Please choose a different time.", "error");
-        setIsLoading(false);
-        return;
+        showToast("This time slot is already booked or pending approval. Please choose a different time.", "error")
+        setIsLoading(false)
+        return
       }
 
-      const { data: userData, error: userError } = await supabase.auth.getUser();
-      if (userError) throw userError;
+      const { data: userData, error: userError } = await supabase.auth.getUser()
+      if (userError) throw userError
 
-      const receiptUrl = await uploadImage(receiptImage);
-
-      const { error } = await supabase.from("reservations").insert({
+      const bookingData = {
         user_id: userData.user.id,
         facility_id: facility.id,
         booker_name: bookerName,
@@ -226,26 +195,125 @@ export default function BookingPage({ params }: PageProps) {
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
         status: "pending",
-        receipt_image_url: receiptUrl,
         purpose: purpose,
         number_of_attendees: numberOfAttendees ? Number.parseInt(numberOfAttendees) : null,
         special_requests: specialRequests,
-      });
+      }
 
-      if (error) throw error;
+      const isSpecialVenue = SPECIAL_VENUES.includes(facility.name)
+      const table = isSpecialVenue ? "payment_collector_approval" : "reservations"
+      const { data, error } = await supabase.from(table).insert(bookingData).select()
 
-      showToast("Your booking request has been submitted for approval.", "success");
-      router.push("/end-user/dashboard/reservation");
+      if (error) throw error
+
+      if (!data || data.length === 0) {
+        throw new Error("No data returned from booking insertion")
+      }
+
+      const newBooking = data[0]
+
+      // Create notification for the end-user
+      const { error: notificationError } = await supabase.from("notifications").insert({
+        user_id: userData.user.id,
+        message: `Your booking request for ${facility.name} has been submitted and is pending approval.`,
+        action_type: "booking_created",
+        related_id: newBooking.id,
+      })
+
+      if (notificationError) throw notificationError
+
+      // Add transaction history
+      const transactionData = {
+        user_id: userData.user.id,
+        facility_id: facility.id,
+        action: "booking_created",
+        action_by: userData.user.id,
+        action_by_role: "end_user",
+        target_user_id: null,
+        status: "pending",
+        details: JSON.stringify({
+          booking_id: newBooking.id,
+          start_time: startDateTime.toISOString(),
+          end_time: endDateTime.toISOString(),
+          purpose: purpose,
+        }),
+      }
+
+      const { error: transactionError } = await supabase.from("transactions").insert(transactionData)
+
+      if (transactionError) throw transactionError
+
+      if (isSpecialVenue) {
+        // Create notification for payment collectors
+        const { data: paymentCollectors, error: pcError } = await supabase
+          .from("users")
+          .select("id")
+          .eq("account_type", "payment_collector")
+
+        if (pcError) throw pcError
+
+        const notificationPromises = paymentCollectors.map((pc) => {
+          return supabase.from("notifications").insert({
+            user_id: pc.id,
+            message: `New booking request for ${facility.name}`,
+            action_type: "new_booking",
+            related_id: newBooking.id,
+          })
+        })
+
+        await Promise.all(notificationPromises)
+      } else if (facility.name === "MO Conference Room") {
+        // Create notification for MDRR staff for MO Conference Room
+        const { data: mdrrStaff, error: mdrrError } = await supabase
+          .from("users")
+          .select("id")
+          .eq("account_type", "mdrr_staff")
+
+        if (mdrrError) throw mdrrError
+
+        const notificationPromises = mdrrStaff.map((staff) => {
+          return supabase.from("notifications").insert({
+            user_id: staff.id,
+            message: `New booking request for MO Conference Room`,
+            action_type: "new_booking",
+            related_id: newBooking.id,
+          })
+        })
+
+        await Promise.all(notificationPromises)
+      } else {
+        // Create notification for admins for other non-special venues
+        const { data: admins, error: adminError } = await supabase
+          .from("users")
+          .select("id")
+          .eq("account_type", "admin")
+
+        if (adminError) throw adminError
+
+        const notificationPromises = admins.map((admin) => {
+          return supabase.from("notifications").insert({
+            user_id: admin.id,
+            message: `New booking request for ${facility.name}`,
+            action_type: "new_booking",
+            related_id: newBooking.id,
+          })
+        })
+
+        await Promise.all(notificationPromises)
+      }
+
+      showToast("Your booking request has been submitted for approval.", "success")
+      router.push("/end-user/dashboard/reservation")
     } catch (error) {
-      console.error("Error submitting booking:", error);
-      showToast("There was an error submitting your booking. Please try again.", "error");
+      console.error("Error submitting booking:", error)
+      showToast("There was an error submitting your booking. Please try again.", "error")
     } finally {
-      setIsLoading(false);
+      setIsLoading(false)
     }
-  };
+  }
 
   if (!facility) {
-    return <div>Loading...</div>;
+    return <div>Loading...</div>
   }
 
   return (
@@ -351,9 +419,9 @@ export default function BookingPage({ params }: PageProps) {
                 type="number"
                 value={numberOfAttendees}
                 onChange={(e) => {
-                  const value = Number.parseInt(e.target.value);
+                  const value = Number.parseInt(e.target.value)
                   if (!isNaN(value) && value >= 0 && value <= facility.capacity) {
-                    setNumberOfAttendees(e.target.value);
+                    setNumberOfAttendees(e.target.value)
                   }
                 }}
                 min="0"
@@ -371,24 +439,6 @@ export default function BookingPage({ params }: PageProps) {
                 placeholder="Any special requests or additional information"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="receipt">Upload Receipt</Label>
-              <div className="flex items-center space-x-2">
-                <Input
-                  id="receipt"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  required
-                  className="flex-grow"
-                />
-                <Button type="button" variant="outline" onClick={() => document.getElementById("receipt")?.click()}>
-                  <Upload className="w-4 h-4 mr-2" />
-                  Upload
-                </Button>
-              </div>
-              {receiptImage && <p className="text-sm text-muted-foreground mt-1">{receiptImage.name}</p>}
-            </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? "Submitting..." : "Submit Booking"}
             </Button>
@@ -396,5 +446,6 @@ export default function BookingPage({ params }: PageProps) {
         </CardContent>
       </Card>
     </div>
-  );
+  )
 }
+

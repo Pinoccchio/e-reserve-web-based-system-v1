@@ -54,14 +54,20 @@ export function RootLayoutClient({
       router.push("/admin/dashboard")
     } else if (data?.account_type === "end-user") {
       router.push("/end-user/dashboard")
+    } else if (data?.account_type === "payment_collector") {
+      router.push("/payment_collector")
+    } else if (data?.account_type === "mdrr_staff") {
+      router.push("/mdrr-staff")
     }
   }
 
   const isAdminDashboard = pathname?.startsWith("/admin/dashboard")
   const isEndUserDashboard = pathname?.startsWith("/end-user/dashboard")
-  const shouldShowHeader = !isAdminDashboard && !isEndUserDashboard
+  const isPaymentCollector = pathname?.startsWith("/payment_collector")
+  const isMDRRStaff = pathname?.startsWith("/mdrr-staff")
+  const shouldShowHeader = !isAdminDashboard && !isEndUserDashboard && !isPaymentCollector && !isMDRRStaff
 
-  if (isAuthenticated && (isAdminDashboard || isEndUserDashboard)) {
+  if (isAuthenticated && (isAdminDashboard || isEndUserDashboard || isPaymentCollector || isMDRRStaff)) {
     return children
   }
 
@@ -71,7 +77,7 @@ export function RootLayoutClient({
         <header className="sticky top-0 z-50 bg-white shadow-sm">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center py-4">
-              <div className="flex items-center flex-shrink-0 mr-6">
+              <div className="flex items-center flex-shrink-0">
                 <Link href="/" className="flex items-center">
                   <Image
                     src="/libmanan-logo.png"
@@ -87,33 +93,7 @@ export function RootLayoutClient({
                   <span className="ml-2 text-lg font-semibold text-gray-800 sm:hidden">LIBMANAN</span>
                 </Link>
               </div>
-              <nav className="hidden md:flex space-x-1 flex-grow justify-center">
-                <Link
-                  href="/venues"
-                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-gray-100 transition duration-150 ease-in-out"
-                >
-                  Venues
-                </Link>
-                <Link
-                  href="/reservations"
-                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-gray-100 transition duration-150 ease-in-out"
-                >
-                  Reservations
-                </Link>
-                <Link
-                  href="/about"
-                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-gray-100 transition duration-150 ease-in-out"
-                >
-                  About
-                </Link>
-                <Link
-                  href="/contact"
-                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-600 hover:text-blue-600 hover:bg-gray-100 transition duration-150 ease-in-out"
-                >
-                  Contact
-                </Link>
-              </nav>
-              <div className="hidden md:flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
                 <AuthDialogs>
                   <Button variant="ghost">Sign In</Button>
                 </AuthDialogs>
@@ -132,43 +112,12 @@ export function RootLayoutClient({
       {shouldShowHeader && (
         <footer className="bg-gray-800 text-white py-8">
           <div className="container mx-auto px-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>
                 <h3 className="text-lg font-semibold mb-2">About E-Reserve</h3>
                 <p className="text-gray-300">
                   E-Reserve is your go-to platform for managing and booking venues effortlessly.
                 </p>
-              </div>
-              <div>
-                <h3 className="text-lg font-semibold mb-2">Quick Links</h3>
-                <ul className="space-y-2">
-                  <li>
-                    <Link href="/venues" className="text-gray-300 hover:text-white transition duration-150 ease-in-out">
-                      Venues
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/reservations"
-                      className="text-gray-300 hover:text-white transition duration-150 ease-in-out"
-                    >
-                      Reservations
-                    </Link>
-                  </li>
-                  <li>
-                    <Link href="/about" className="text-gray-300 hover:text-white transition duration-150 ease-in-out">
-                      About Us
-                    </Link>
-                  </li>
-                  <li>
-                    <Link
-                      href="/contact"
-                      className="text-gray-300 hover:text-white transition duration-150 ease-in-out"
-                    >
-                      Contact
-                    </Link>
-                  </li>
-                </ul>
               </div>
               <div>
                 <h3 className="text-lg font-semibold mb-2">Contact Us</h3>
