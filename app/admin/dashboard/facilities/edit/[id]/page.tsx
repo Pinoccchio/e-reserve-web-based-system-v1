@@ -1,86 +1,86 @@
-"use client"
+"use client";
 
-import type React from "react"
-import { useState, useEffect, use } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { createClient } from "@supabase/supabase-js"
-import { v4 as uuidv4 } from "uuid"
-import { X, Upload, ImageIcon, MapPin, Loader2 } from "lucide-react"
-import { Loader } from "@googlemaps/js-api-loader"
-import { GoogleMapPicker } from "@/components/GoogleMapPicker"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import { motion, AnimatePresence } from "framer-motion"
+import type React from "react";
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { createClient } from "@supabase/supabase-js";
+import { v4 as uuidv4 } from "uuid";
+import { X, Upload, ImageIcon, MapPin, Loader2 } from "lucide-react";
+import { Loader } from "@googlemaps/js-api-loader";
+import { GoogleMapPicker } from "@/components/GoogleMapPicker";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { motion, AnimatePresence } from "framer-motion";
+import Image from 'next/image'; // Import the Image component
 
 declare global {
   interface Window {
     google: {
       maps: {
         places: {
-          Autocomplete: new (input: HTMLInputElement, options: AutocompleteOptions) => google.maps.places.Autocomplete
-        }
-      }
-    }
+          Autocomplete: new (input: HTMLInputElement, options: AutocompleteOptions) => google.maps.places.Autocomplete;
+        };
+      };
+    };
   }
 }
 
 interface AutocompleteOptions {
-  fields: string[]
+  fields: string[];
 }
 
 const bagumbayanCenter = {
   lat: 13.3553,
   lng: 123.3242,
-}
+};
 
-const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 interface Location {
-  address: string
-  lat: number
-  lng: number
+  address: string;
+  lat: number;
+  lng: number;
 }
 
 interface Facility {
-  id: number
-  name: string
-  location: string
-  latitude: number
-  longitude: number
-  description: string
-  capacity: number
-  type: string
-  price_per_hour: number
-  images: { id: number; image_url: string }[]
+  id: number;
+  name: string;
+  location: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+  capacity: number;
+  type: string;
+  price_per_hour: number;
+  images: { id: number; image_url: string }[];
 }
 
 interface PageProps {
-  params: Promise<{ id: string }>
+  params: Promise<{ id: string }>;
 }
 
 export default function EditFacilityPage({ params }: PageProps) {
-  const router = useRouter()
-  const [facility, setFacility] = useState<Facility | null>(null)
-  const [name, setName] = useState("")
-  const [location, setLocation] = useState<Location | null>(null)
-  const [description, setDescription] = useState("")
-  const [capacity, setCapacity] = useState("")
-  const [type, setType] = useState("")
-  const [pricePerHour, setPricePerHour] = useState("")
-  const [imageSets, setImageSets] = useState<File[][]>([])
-  const [currentImages, setCurrentImages] = useState<File[]>([])
-  const [existingImages, setExistingImages] = useState<{ id: number; image_url: string }[]>([])
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [searchQuery, setSearchQuery] = useState("")
-  const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number } | null>(null)
-  //const autocompleteInputRef = useRef<HTMLInputElement>(null)
+  const router = useRouter();
+  const [facility, setFacility] = useState<Facility | null>(null);
+  const [name, setName] = useState("");
+  const [location, setLocation] = useState<Location | null>(null);
+  const [description, setDescription] = useState("");
+  const [capacity, setCapacity] = useState("");
+  const [type, setType] = useState("");
+  const [pricePerHour, setPricePerHour] = useState("");
+  const [imageSets, setImageSets] = useState<File[][]>([]);
+  const [currentImages, setCurrentImages] = useState<File[]>([]);
+  const [existingImages, setExistingImages] = useState<{ id: number; image_url: string }[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   // Unwrap the params using React.use()
-  const { id } = use(params)
+  const { id } = use(params);
 
   useEffect(() => {
     const fetchFacility = async () => {
@@ -88,128 +88,128 @@ export default function EditFacilityPage({ params }: PageProps) {
         .from("facilities")
         .select(`*, images:facility_images(id, image_url)`)
         .eq("id", id)
-        .single()
+        .single();
 
       if (error) {
-        console.error("Error fetching facility:", error)
-        return
+        console.error("Error fetching facility:", error);
+        return;
       }
 
-      setFacility(data)
-      setName(data.name)
-      setLocation({ address: data.location, lat: data.latitude, lng: data.longitude })
-      setSearchQuery(data.location)
-      setDescription(data.description)
-      setCapacity(data.capacity.toString())
-      setType(data.type)
-      setPricePerHour(data.price_per_hour.toString())
-      setExistingImages(data.images)
-    }
+      setFacility(data);
+      setName(data.name);
+      setLocation({ address: data.location, lat: data.latitude, lng: data.longitude });
+      setSearchQuery(data.location);
+      setDescription(data.description);
+      setCapacity(data.capacity.toString());
+      setType(data.type);
+      setPricePerHour(data.price_per_hour.toString());
+      setExistingImages(data.images);
+    };
 
-    fetchFacility()
-  }, [id])
+    fetchFacility();
+  }, [id]);
 
   useEffect(() => {
     const loader = new Loader({
       apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
       version: "weekly",
       libraries: ["places"],
-    })
+    });
 
     loader.load().then(() => {
-      const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
+      const autocompleteInput = document.getElementById("location-search") as HTMLInputElement;
       const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
         fields: ["formatted_address", "geometry"],
-      })
+      });
 
       autocompleteInstance.addListener("place_changed", () => {
-        const place = autocompleteInstance.getPlace()
+        const place = autocompleteInstance.getPlace();
         if (place.geometry?.location) {
           const newLocation = {
             address: place.formatted_address || "",
             lat: place.geometry.location.lat(),
             lng: place.geometry.location.lng(),
-          }
-          setLocation(newLocation)
-          setSearchQuery(newLocation.address)
-          setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
+          };
+          setLocation(newLocation);
+          setSearchQuery(newLocation.address);
+          setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng });
         }
-      })
-    })
-  }, [])
+      });
+    });
+  }, []);
 
   const handleLocationSelect = (selectedLocation: Location | null) => {
-    setLocation(selectedLocation)
-    setSearchQuery(selectedLocation ? selectedLocation.address : "")
-    setSearchedLocation(selectedLocation ? { lat: selectedLocation.lat, lng: selectedLocation.lng } : null)
-  }
+    setLocation(selectedLocation);
+    setSearchQuery(selectedLocation ? selectedLocation.address : "");
+    setSearchedLocation(selectedLocation ? { lat: selectedLocation.lat, lng: selectedLocation.lng } : null);
+  };
 
   const clearLocation = () => {
-    setLocation(null)
-    setSearchQuery("")
-    setSearchedLocation(bagumbayanCenter)
-  }
+    setLocation(null);
+    setSearchQuery("");
+    setSearchedLocation(bagumbayanCenter);
+  };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      setCurrentImages(Array.from(e.target.files))
+      setCurrentImages(Array.from(e.target.files));
     }
-  }
+  };
 
   const uploadImage = async (file: File) => {
     try {
-      const fileExt = file.name.split(".").pop()
-      const fileName = `${uuidv4()}.${fileExt}`
-      const filePath = `${fileName}`
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${uuidv4()}.${fileExt}`;
+      const filePath = `${fileName}`;
 
       const { data, error: uploadError } = await supabase.storage
         .from("facility-images")
-        .upload(filePath, file, { cacheControl: "3600", upsert: false })
+        .upload(filePath, file, { cacheControl: "3600", upsert: false });
 
-      if (uploadError) throw uploadError
-      if (!data) throw new Error("Upload succeeded but no data returned")
+      if (uploadError) throw uploadError;
+      if (!data) throw new Error("Upload succeeded but no data returned");
 
-      const { data: urlData } = supabase.storage.from("facility-images").getPublicUrl(filePath)
-      if (!urlData) throw new Error("Failed to get public URL for uploaded file")
+      const { data: urlData } = supabase.storage.from("facility-images").getPublicUrl(filePath);
+      if (!urlData) throw new Error("Failed to get public URL for uploaded file");
 
-      return urlData.publicUrl
+      return urlData.publicUrl;
     } catch (error) {
-      console.error("Error in uploadImage function:", error)
-      throw error
+      console.error("Error in uploadImage function:", error);
+      throw error;
     }
-  }
+  };
 
   const handleAddImageSet = () => {
     if (currentImages.length > 0) {
-      setImageSets([...imageSets, currentImages])
-      setCurrentImages([])
+      setImageSets([...imageSets, currentImages]);
+      setCurrentImages([]);
       // Clear the file input
-      const fileInput = document.getElementById("images") as HTMLInputElement
-      if (fileInput) fileInput.value = ""
+      const fileInput = document.getElementById("images") as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
     }
-  }
+  };
 
   const handleRemoveImageSet = (index: number) => {
-    setImageSets(imageSets.filter((_, i) => i !== index))
-  }
+    setImageSets(imageSets.filter((_, i) => i !== index));
+  };
 
   const handleRemoveExistingImage = async (imageId: number) => {
     try {
-      const { error } = await supabase.from("facility_images").delete().eq("id", imageId)
-      if (error) throw error
-      setExistingImages(existingImages.filter((img) => img.id !== imageId))
+      const { error } = await supabase.from("facility_images").delete().eq("id", imageId);
+      if (error) throw error;
+      setExistingImages(existingImages.filter((img) => img.id !== imageId));
     } catch (error) {
-      console.error("Error removing existing image:", error)
+      console.error("Error removing existing image:", error);
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
+    e.preventDefault();
+    setIsSubmitting(true);
 
     try {
       // Upload new images
-      const newImageUrls = await Promise.all(imageSets.flat().map(uploadImage))
+      const newImageUrls = await Promise.all(imageSets.flat().map(uploadImage));
 
       // Update facility data
       const { error: facilityError } = await supabase
@@ -224,33 +224,33 @@ export default function EditFacilityPage({ params }: PageProps) {
           type,
           price_per_hour: Number.parseFloat(pricePerHour),
         })
-        .eq("id", id)
+        .eq("id", id);
 
-      if (facilityError) throw facilityError
+      if (facilityError) throw facilityError;
 
       // Insert new image data
       if (newImageUrls.length > 0) {
         const imageInserts = newImageUrls.map((url) => ({
           facility_id: id,
           image_url: url,
-        }))
+        }));
 
-        const { error: imageError } = await supabase.from("facility_images").insert(imageInserts)
-        if (imageError) throw imageError
+        const { error: imageError } = await supabase.from("facility_images").insert(imageInserts);
+        if (imageError) throw imageError;
       }
 
-      console.log("Facility Updated: The facility has been successfully updated.")
+      console.log("Facility Updated: The facility has been successfully updated.");
 
-      router.push("/admin/dashboard/facilities")
+      router.push("/admin/dashboard/facilities");
     } catch (error) {
-      console.error("Error updating facility:", error)
+      console.error("Error updating facility:", error);
     } finally {
-      setIsSubmitting(false)
+      setIsSubmitting(false);
     }
-  }
+  };
 
   if (!facility) {
-    return <div>Loading...</div>
+    return <div>Loading...</div>;
   }
 
   return (
@@ -355,9 +355,11 @@ export default function EditFacilityPage({ params }: PageProps) {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {existingImages.map((image) => (
                     <div key={image.id} className="relative">
-                      <img
+                      <Image
                         src={image.image_url || "/placeholder.svg"}
                         alt="Facility"
+                        width={800} // Adjust width as needed
+                        height={500} // Adjust height as needed
                         className="w-full h-40 object-cover rounded-md"
                       />
                       <Button
@@ -455,6 +457,5 @@ export default function EditFacilityPage({ params }: PageProps) {
         </Card>
       </motion.div>
     </div>
-  )
+  );
 }
-

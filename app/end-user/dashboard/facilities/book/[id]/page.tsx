@@ -1,52 +1,52 @@
-"use client"
+"use client";
 
-import React, { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Calendar } from "@/components/ui/calendar"
-import { format } from "date-fns"
-import { CalendarIcon, Upload } from "lucide-react"
-import { cn } from "@/lib/utils"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Textarea } from "@/components/ui/textarea"
-import { supabase } from "@/lib/supabase"
-import { showToast } from "@/components/ui/toast"
-import { v4 as uuidv4 } from "uuid"
+import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Calendar } from "@/components/ui/calendar";
+import { format } from "date-fns";
+import { CalendarIcon, Upload } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
+import { supabase } from "@/lib/supabase";
+import { showToast } from "@/components/ui/toast";
+import { v4 as uuidv4 } from "uuid";
 
 interface Facility {
-  id: number
-  name: string
-  description: string
-  capacity: number
-  type: string
-  price_per_hour: number
+  id: number;
+  name: string;
+  description: string;
+  capacity: number;
+  type: string;
+  price_per_hour: number;
 }
 
 interface PageProps {
   params: Promise<{
-    id: string
-  }>
+    id: string;
+  }>;
 }
 
 export default function BookingPage({ params }: PageProps) {
-  const { id: facilityId } = React.use(params)
-  const [facility, setFacility] = useState<Facility | null>(null)
-  const [startDate, setStartDate] = useState<Date>()
-  const [endDate, setEndDate] = useState<Date>()
-  const [startTime, setStartTime] = useState("")
-  const [endTime, setEndTime] = useState("")
-  const [bookerName, setBookerName] = useState("")
-  const [bookerEmail, setBookerEmail] = useState("")
-  const [bookerPhone, setBookerPhone] = useState("")
-  const [purpose, setPurpose] = useState("")
-  const [numberOfAttendees, setNumberOfAttendees] = useState("")
-  const [specialRequests, setSpecialRequests] = useState("")
-  const [receiptImage, setReceiptImage] = useState<File | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const router = useRouter()
+  const { id: facilityId } = React.use(params);
+  const [facility, setFacility] = useState<Facility | null>(null);
+  const [startDate, setStartDate] = useState<Date>();
+  const [endDate, setEndDate] = useState<Date>();
+  const [startTime, setStartTime] = useState("");
+  const [endTime, setEndTime] = useState("");
+  const [bookerName, setBookerName] = useState("");
+  const [bookerEmail, setBookerEmail] = useState("");
+  const [bookerPhone, setBookerPhone] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [numberOfAttendees, setNumberOfAttendees] = useState("");
+  const [specialRequests, setSpecialRequests] = useState("");
+  const [receiptImage, setReceiptImage] = useState<File | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchFacilityAndUserData = async () => {
@@ -56,61 +56,62 @@ export default function BookingPage({ params }: PageProps) {
           .from("facilities")
           .select("*")
           .eq("id", facilityId)
-          .single()
+          .single();
 
-        if (facilityError) throw facilityError
-        setFacility(facilityData)
+        if (facilityError) throw facilityError;
+        setFacility(facilityData);
 
         // Fetch user data
         const {
           data: { user },
           error: userError,
-        } = await supabase.auth.getUser()
-        if (userError) throw userError
+        } = await supabase.auth.getUser();
+
+        if (userError) throw userError;
 
         if (user) {
           const { data: userData, error: profileError } = await supabase
             .from("users")
             .select("first_name, last_name, email")
             .eq("id", user.id)
-            .single()
+            .single();
 
-          if (profileError) throw profileError
+          if (profileError) throw profileError;
 
           if (userData) {
-            setBookerName(`${userData.first_name} ${userData.last_name}`)
-            setBookerEmail(userData.email)
+            setBookerName(`${userData.first_name} ${userData.last_name}`);
+            setBookerEmail(userData.email);
           }
         }
       } catch (error) {
-        console.error("Error fetching data:", error)
-        showToast("Failed to fetch necessary data. Please try again.", "error")
+        console.error("Error fetching data:", error);
+        showToast("Failed to fetch necessary data. Please try again.", "error");
       }
-    }
+    };
 
-    fetchFacilityAndUserData()
-  }, [facilityId])
+    fetchFacilityAndUserData();
+  }, [facilityId]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setReceiptImage(e.target.files[0])
+      setReceiptImage(e.target.files[0]);
     }
-  }
+  };
 
   const uploadImage = async (file: File) => {
-    const fileExt = file.name.split(".").pop()
-    const fileName = `${uuidv4()}.${fileExt}`
-    const filePath = `receipts/${fileName}`
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${uuidv4()}.${fileExt}`;
+    const filePath = `receipts/${fileName}`;
 
-    const { error: uploadError } = await supabase.storage.from("receipts").upload(filePath, file)
+    const { error: uploadError } = await supabase.storage.from("receipts").upload(filePath, file);
 
     if (uploadError) {
-      throw uploadError
+      throw uploadError;
     }
 
-    const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(filePath)
-    return urlData.publicUrl
-  }
+    const { data: urlData } = supabase.storage.from("receipts").getPublicUrl(filePath);
+    return urlData.publicUrl;
+  };
 
   const checkOverlappingBookings = async (facilityId: number, startTime: string, endTime: string) => {
     const { data, error } = await supabase
@@ -119,56 +120,56 @@ export default function BookingPage({ params }: PageProps) {
       .eq("facility_id", facilityId)
       .lte("start_time", endTime)
       .gte("end_time", startTime)
-      .not("status", "eq", "cancelled")
+      .not("status", "eq", "cancelled");
 
     if (error) {
-      console.error("Error checking overlapping bookings:", error)
-      return true // Assume there's a conflict if we can't check
+      console.error("Error checking overlapping bookings:", error);
+      return true; // Assume there's a conflict if we can't check
     }
 
-    return data.length > 0 // Returns true if there are overlapping bookings
-  }
+    return data.length > 0; // Returns true if there are overlapping bookings
+  };
 
   const validateDateTimeInputs = (startDate: Date, endDate: Date, startTime: string, endTime: string) => {
-    const start = new Date(startDate)
-    start.setHours(Number.parseInt(startTime.split(":")[0]), Number.parseInt(startTime.split(":")[1]))
+    const start = new Date(startDate);
+    start.setHours(Number.parseInt(startTime.split(":")[0]), Number.parseInt(startTime.split(":")[1]));
 
-    const end = new Date(endDate)
-    end.setHours(Number.parseInt(endTime.split(":")[0]), Number.parseInt(endTime.split(":")[1]))
+    const end = new Date(endDate);
+    end.setHours(Number.parseInt(endTime.split(":")[0]), Number.parseInt(endTime.split(":")[1]));
 
-    const now = new Date()
+    const now = new Date();
 
     if (start < now) {
-      showToast("Start date and time cannot be in the past", "error")
-      return false
+      showToast("Start date and time cannot be in the past", "error");
+      return false;
     }
 
     if (end <= start) {
-      showToast("End date and time must be after the start date and time", "error")
-      return false
+      showToast("End date and time must be after the start date and time", "error");
+      return false;
     }
 
-    return true
-  }
+    return true;
+  };
 
   const handleStartDateSelect = (date: Date | undefined) => {
-    setStartDate(date)
+    setStartDate(date);
     if (date && endDate && date > endDate) {
-      setEndDate(undefined)
-      showToast("End date must be after the start date", "error")
+      setEndDate(undefined);
+      showToast("End date must be after the start date", "error");
     }
-  }
+  };
 
   const handleEndDateSelect = (date: Date | undefined) => {
     if (date && startDate && date < startDate) {
-      showToast("End date must be after the start date", "error")
+      showToast("End date must be after the start date", "error");
     } else {
-      setEndDate(date)
+      setEndDate(date);
     }
-  }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
     if (
       !startDate ||
       !endDate ||
@@ -180,21 +181,21 @@ export default function BookingPage({ params }: PageProps) {
       !bookerPhone ||
       !facility
     ) {
-      showToast("Please fill in all required fields and upload a receipt", "error")
-      return
+      showToast("Please fill in all required fields and upload a receipt", "error");
+      return;
     }
 
     if (!validateDateTimeInputs(startDate, endDate, startTime, endTime)) {
-      return
+      return;
     }
 
-    setIsLoading(true)
+    setIsLoading(true);
 
-    const startDateTime = new Date(startDate)
-    startDateTime.setHours(Number.parseInt(startTime.split(":")[0]), Number.parseInt(startTime.split(":")[1]))
+    const startDateTime = new Date(startDate);
+    startDateTime.setHours(Number.parseInt(startTime.split(":")[0]), Number.parseInt(startTime.split(":")[1]));
 
-    const endDateTime = new Date(endDate)
-    endDateTime.setHours(Number.parseInt(endTime.split(":")[0]), Number.parseInt(endTime.split(":")[1]))
+    const endDateTime = new Date(endDate);
+    endDateTime.setHours(Number.parseInt(endTime.split(":")[0]), Number.parseInt(endTime.split(":")[1]));
 
     try {
       // Check for overlapping bookings
@@ -202,18 +203,18 @@ export default function BookingPage({ params }: PageProps) {
         facility.id,
         startDateTime.toISOString(),
         endDateTime.toISOString(),
-      )
+      );
 
       if (hasOverlap) {
-        showToast("This time slot is already booked. Please choose a different time.", "error")
-        setIsLoading(false)
-        return
+        showToast("This time slot is already booked. Please choose a different time.", "error");
+        setIsLoading(false);
+        return;
       }
 
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
+      const { data: userData, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
 
-      const receiptUrl = await uploadImage(receiptImage)
+      const receiptUrl = await uploadImage(receiptImage);
 
       const { data, error } = await supabase.from("reservations").insert({
         user_id: userData.user.id,
@@ -228,22 +229,22 @@ export default function BookingPage({ params }: PageProps) {
         purpose: purpose,
         number_of_attendees: numberOfAttendees ? Number.parseInt(numberOfAttendees) : null,
         special_requests: specialRequests,
-      })
+      });
 
-      if (error) throw error
+      if (error) throw error;
 
-      showToast("Your booking request has been submitted for approval.", "success")
-      router.push("/end-user/dashboard/reservation")
+      showToast("Your booking request has been submitted for approval.", "success");
+      router.push("/end-user/dashboard/reservation");
     } catch (error) {
-      console.error("Error submitting booking:", error)
-      showToast("There was an error submitting your booking. Please try again.", "error")
+      console.error("Error submitting booking:", error);
+      showToast("There was an error submitting your booking. Please try again.", "error");
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   if (!facility) {
-    return <div>Loading...</div>
+    return <div>Loading...</div>;
   }
 
   return (
@@ -349,9 +350,9 @@ export default function BookingPage({ params }: PageProps) {
                 type="number"
                 value={numberOfAttendees}
                 onChange={(e) => {
-                  const value = Number.parseInt(e.target.value)
+                  const value = Number.parseInt(e.target.value);
                   if (!isNaN(value) && value >= 0 && value <= facility.capacity) {
-                    setNumberOfAttendees(e.target.value)
+                    setNumberOfAttendees(e.target.value);
                   }
                 }}
                 min="0"
@@ -394,6 +395,5 @@ export default function BookingPage({ params }: PageProps) {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
-

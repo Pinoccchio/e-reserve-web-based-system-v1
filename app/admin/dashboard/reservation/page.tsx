@@ -1,50 +1,52 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { showToast } from "@/components/ui/toast"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { format } from "date-fns"
-import { Calendar, Clock, MapPin, Building, Users, FileText } from "lucide-react"
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { showToast } from "@/components/ui/toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { format } from "date-fns";
+import { Calendar, Clock, MapPin, Building, Users, FileText } from "lucide-react";
+
+interface Facility {
+  name: string;
+  location: string;
+}
 
 interface Reservation {
-  id: number
-  user_id: string
-  facility_id: number
-  booker_name: string
-  booker_email: string
-  booker_phone: string
-  start_time: string
-  end_time: string
-  status: "pending" | "approved" | "declined" | "cancelled" | "completed"
-  receipt_image_url: string | null
-  purpose: string | null
-  number_of_attendees: number | null
-  special_requests: string | null
-  created_by: string
-  last_updated_by: string
-  admin_action_by: string | null
-  admin_action_at: string | null
-  cancellation_reason: string | null
-  facility: {
-    name: string
-    location: string
-  } | null
+  id: number;
+  user_id: string;
+  facility_id: number;
+  booker_name: string;
+  booker_email: string;
+  booker_phone: string;
+  start_time: string;
+  end_time: string;
+  status: "pending" | "approved" | "declined" | "cancelled" | "completed";
+  receipt_image_url: string | null;
+  purpose: string | null;
+  number_of_attendees: number | null;
+  special_requests: string | null;
+  created_by: string;
+  last_updated_by: string;
+  admin_action_by: string | null;
+  admin_action_at: string | null;
+  cancellation_reason: string | null;
+  facility: Facility | null;
 }
 
 export default function ReservationsPage() {
-  const [reservations, setReservations] = useState<Reservation[]>([])
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [error, setError] = useState<string | null>(null)
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchReservations()
-  }, [])
+    fetchReservations();
+  }, []);
 
   async function fetchReservations() {
     try {
@@ -54,35 +56,35 @@ export default function ReservationsPage() {
           *,
           facility:facilities(name, location)
         `)
-        .order("created_at", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (error) {
-        throw new Error(`Supabase error: ${error.message}`)
+        throw new Error(`Supabase error: ${error.message}`);
       }
 
       if (!data) {
-        throw new Error("No data returned from Supabase")
+        throw new Error("No data returned from Supabase");
       }
 
-      const typedReservations: Reservation[] = data.map((reservation: any) => ({
+      const typedReservations: Reservation[] = data.map((reservation: Reservation) => ({
         ...reservation,
         facility: reservation.facility ?? null,
-      }))
+      }));
 
-      setReservations(typedReservations)
-      setError(null)
-      showToast(`Successfully fetched ${typedReservations.length} reservations.`, "success")
+      setReservations(typedReservations);
+      setError(null);
+      showToast(`Successfully fetched ${typedReservations.length} reservations.`, "success");
     } catch (error) {
-      console.error("Error fetching reservations:", error)
-      setError(`Failed to fetch reservations: ${error instanceof Error ? error.message : "Unknown error"}`)
-      setReservations([])
-      showToast("There was an error loading the reservations. Please try again.", "error")
+      console.error("Error fetching reservations:", error);
+      setError(`Failed to fetch reservations: ${error instanceof Error ? error.message : "Unknown error"}`);
+      setReservations([]);
+      showToast("There was an error loading the reservations. Please try again.", "error");
     }
   }
 
   const filteredReservations = reservations.filter(
     (reservation) => statusFilter === "all" || reservation.status === statusFilter,
-  )
+  );
 
   const handleStatusChange = async (
     reservationId: number,
@@ -96,20 +98,20 @@ export default function ReservationsPage() {
           admin_action_by: (await supabase.auth.getUser()).data.user?.id,
           admin_action_at: new Date().toISOString(),
         })
-        .eq("id", reservationId)
+        .eq("id", reservationId);
 
-      if (error) throw error
+      if (error) throw error;
 
       setReservations(
         reservations.map((reservation) =>
           reservation.id === reservationId ? { ...reservation, status: newStatus } : reservation,
         ),
-      )
+      );
 
-      showToast(`Reservation has been ${newStatus}.`, "success")
+      showToast(`Reservation has been ${newStatus}.`, "success");
     } catch (error) {
-      console.error("Error updating reservation status:", error)
-      showToast("There was an error updating the reservation status.", "error")
+      console.error("Error updating reservation status:", error);
+      showToast("There was an error updating the reservation status.", "error");
     }
   }
 
@@ -323,23 +325,22 @@ export default function ReservationsPage() {
         </CardContent>
       </Card>
     </div>
-  )
+  );
 }
 
 function getStatusColor(status: string) {
   switch (status) {
     case "pending":
-      return "text-yellow-600"
+      return "text-yellow-600";
     case "approved":
-      return "text-green-600"
+      return "text-green-600";
     case "declined":
-      return "text-red-600"
+      return "text-red-600";
     case "cancelled":
-      return "text-orange-600"
+      return "text-orange-600";
     case "completed":
-      return "text-blue-600"
+      return "text-blue-600";
     default:
-      return "text-gray-600"
+      return "text-gray-600";
   }
 }
-
