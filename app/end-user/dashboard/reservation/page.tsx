@@ -1,65 +1,95 @@
-"use client";
+"use client"
 
-import { useState, useEffect } from "react";
-import { supabase } from "@/lib/supabase";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
-import { format, parseISO } from "date-fns";
-import { CalendarIcon, MapPin, AlertCircle, Building, Users, FileText } from "lucide-react";
-import { showToast } from "@/components/ui/toast";
-import EndUserCalendar from "@/components/EndUserCalender";
+import { useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { ScrollArea } from "@/components/ui/scroll-area"
+import { Badge } from "@/components/ui/badge"
+import { format, parseISO } from "date-fns"
+import { CalendarIcon, MapPin, AlertCircle, Building, Users, FileText, ChevronLeft, ChevronRight } from "lucide-react"
+import { showToast } from "@/components/ui/toast"
 
 interface Facility {
-  name: string;
-  location: string;
+  name: string
+  location: string
 }
 
 interface Reservation {
-  id: number;
-  user_id: string;
-  facility_id: number;
-  booker_name: string;
-  booker_email: string;
-  booker_phone: string;
-  start_time: string;
-  end_time: string;
-  status: "pending" | "approved" | "declined" | "cancelled" | "completed";
-  receipt_image_url: string | null;
-  purpose: string | null;
-  number_of_attendees: number | null;
-  special_requests: string | null;
-  created_by: string;
-  last_updated_by: string;
-  admin_action_by: string | null;
-  admin_action_at: string | null;
-  cancellation_reason: string | null;
-  facility: Facility | null;
+  id: number
+  user_id: string
+  facility_id: number
+  booker_name: string
+  booker_email: string
+  booker_phone: string
+  start_time: string
+  end_time: string
+  status: "pending" | "approved" | "declined" | "cancelled" | "completed"
+  receipt_image_url: string | null
+  purpose: string | null
+  number_of_attendees: number | null
+  special_requests: string | null
+  created_by: string
+  last_updated_by: string
+  admin_action_by: string | null
+  admin_action_at: string | null
+  cancellation_reason: string | null
+  facility: Facility | null
 }
 
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+]
+
 export default function ReservationsPage() {
-  const [reservations, setReservations] = useState<Reservation[]>([]);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [isLoading, setIsLoading] = useState(true);
-  const [userName, setUserName] = useState("");
-  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null);
+  const [reservations, setReservations] = useState<Reservation[]>([])
+  const [statusFilter, setStatusFilter] = useState("all")
+  const [isLoading, setIsLoading] = useState(true)
+  const [userName, setUserName] = useState("")
+  const [selectedReservation, setSelectedReservation] = useState<Reservation | null>(null)
+  const [currentDate, setCurrentDate] = useState(new Date())
+
+  const daysInMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()
+  const firstDayOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).getDay()
+
+  const prevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+  }
+
+  const nextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+  }
 
   useEffect(() => {
-    fetchReservations();
-    fetchUserName();
-  }, []);
+    fetchReservations()
+    fetchUserName()
+  }, [])
 
   async function fetchReservations() {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await supabase.auth.getUser()
       if (!user) {
-        throw new Error("No authenticated user found");
+        throw new Error("No authenticated user found")
       }
+
+      const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString()
+      const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).toISOString()
 
       const { data, error } = await supabase
         .from("reservations")
@@ -68,29 +98,31 @@ export default function ReservationsPage() {
           facility:facilities(name, location)
         `)
         .eq("user_id", user.id)
-        .order("start_time", { ascending: true });
+        .gte("start_time", startOfMonth)
+        .lte("start_time", endOfMonth)
+        .order("start_time", { ascending: true })
 
       if (error) {
-        throw new Error(`Supabase error: ${error.message}`);
+        throw new Error(`Supabase error: ${error.message}`)
       }
 
       if (!data) {
-        throw new Error("No data returned from Supabase");
+        throw new Error("No data returned from Supabase")
       }
 
-      const typedReservations: Reservation[] = data.map((reservation: Reservation) => ({
+      const typedReservations: Reservation[] = data.map((reservation: any) => ({
         ...reservation,
         facility: reservation.facility ?? null,
-      }));
+      }))
 
-      setReservations(typedReservations);
-      setIsLoading(false);
-      showToast(`Successfully fetched ${typedReservations.length} reservations.`, "success");
+      setReservations(typedReservations)
+      setIsLoading(false)
+      showToast(`Successfully fetched ${typedReservations.length} reservations.`, "success")
     } catch (error) {
-      console.error("Error fetching reservations:", error);
-      showToast("Failed to load reservations. Please try again.", "error");
-      setReservations([]);
-      setIsLoading(false);
+      console.error("Error fetching reservations:", error)
+      showToast("Failed to load reservations. Please try again.", "error")
+      setReservations([])
+      setIsLoading(false)
     }
   }
 
@@ -98,18 +130,18 @@ export default function ReservationsPage() {
     try {
       const {
         data: { user },
-      } = await supabase.auth.getUser();
+      } = await supabase.auth.getUser()
       if (user) {
-        const { data, error } = await supabase.from("users").select("first_name, last_name").eq("id", user.id).single();
+        const { data, error } = await supabase.from("users").select("first_name, last_name").eq("id", user.id).single()
 
-        if (error) throw error;
+        if (error) throw error
         if (data) {
-          setUserName(`${data.first_name} ${data.last_name}`);
+          setUserName(`${data.first_name} ${data.last_name}`)
         }
       }
     } catch (error) {
-      console.error("Error fetching user name:", error);
-      showToast("Failed to load user information.", "error");
+      console.error("Error fetching user name:", error)
+      showToast("Failed to load user information.", "error")
     }
   }
 
@@ -121,37 +153,66 @@ export default function ReservationsPage() {
           status: "cancelled",
           cancellation_reason: `Cancelled by ${userName}`,
         })
-        .eq("id", id);
+        .eq("id", id)
 
-      if (error) throw error;
+      if (error) throw error
 
-      showToast("Reservation cancelled successfully", "success");
-      fetchReservations();
+      showToast("Reservation cancelled successfully", "success")
+      fetchReservations()
     } catch (error) {
-      console.error("Error cancelling reservation:", error);
-      showToast("Failed to cancel reservation. Please try again.", "error");
+      console.error("Error cancelling reservation:", error)
+      showToast("Failed to cancel reservation. Please try again.", "error")
     }
   }
 
   const filteredReservations = reservations.filter(
     (reservation) => statusFilter === "all" || reservation.status === statusFilter,
-  );
+  )
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-200 text-yellow-800";
+        return "bg-yellow-200 text-yellow-800"
       case "approved":
-        return "bg-green-200 text-green-800";
+        return "bg-green-200 text-green-800"
       case "declined":
-        return "bg-red-200 text-red-800";
+        return "bg-red-200 text-red-800"
       case "cancelled":
-        return "bg-gray-200 text-gray-800";
+        return "bg-gray-200 text-gray-800"
       case "completed":
-        return "bg-blue-200 text-blue-800";
+        return "bg-blue-200 text-blue-800"
       default:
-        return "bg-gray-200 text-gray-800";
+        return "bg-gray-200 text-gray-800"
     }
+  }
+
+  const renderCells = () => {
+    const cells = []
+    const today = new Date()
+    for (let i = 0; i < firstDayOfMonth; i++) {
+      cells.push(<div key={`empty-${i}`} className="p-2"></div>)
+    }
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
+      const dayReservations = filteredReservations.filter(
+        (reservation) => new Date(reservation.start_time).getDate() === date.getDate(),
+      )
+      const isToday =
+        date.getDate() === today.getDate() &&
+        date.getMonth() === today.getMonth() &&
+        date.getFullYear() === today.getFullYear()
+      cells.push(
+        <div key={day} className={`p-2 border border-gray-200 ${isToday ? "bg-yellow-100 font-bold" : ""}`}>
+          <span className={`${isToday ? "text-blue-600" : ""}`}>{day}</span>
+          {dayReservations.map((reservation, index) => (
+            <div key={index} className={`text-xs mt-1 p-1 rounded ${getStatusColor(reservation.status)}`}>
+              {reservation.facility?.name}
+            </div>
+          ))}
+        </div>,
+      )
+    }
+    return cells
   }
 
   if (isLoading) {
@@ -201,7 +262,27 @@ export default function ReservationsPage() {
           ) : (
             <div className="space-y-6">
               <div className="w-full">
-                <EndUserCalendar statusFilter={statusFilter} />
+                <div className="bg-white p-4 rounded-lg shadow-md mb-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <Button onClick={prevMonth} variant="outline" size="icon">
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <h2 className="text-xl font-bold">
+                      {MONTHS[currentDate.getMonth()]} {currentDate.getFullYear()}
+                    </h2>
+                    <Button onClick={nextMonth} variant="outline" size="icon">
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-7 gap-1">
+                    {DAYS.map((day) => (
+                      <div key={day} className="font-semibold text-center p-2">
+                        {day}
+                      </div>
+                    ))}
+                    {renderCells()}
+                  </div>
+                </div>
               </div>
               <div className="space-y-4">
                 <h3 className="text-lg font-semibold">Upcoming Reservations</h3>
@@ -322,5 +403,6 @@ export default function ReservationsPage() {
         </DialogContent>
       </Dialog>
     </div>
-  );
+  )
 }
+
