@@ -72,7 +72,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
               ? "/mdrr-staff"
               : "/end-user/dashboard",
       )
-    } catch (error) {
+    } catch {
       showToast("There was a problem creating your account. Please try again.")
     } finally {
       setIsLoading(false)
@@ -88,12 +88,10 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const password = formData.get("password") as string
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-
-      if (error) throw error
 
       setIsSignInOpen(false)
       showToast("Welcome back!", "success")
@@ -108,7 +106,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
               ? "/mdrr-staff"
               : "/end-user/dashboard",
       )
-    } catch (error) {
+    } catch {
       showToast("Invalid email or password.")
     } finally {
       setIsLoading(false)
@@ -249,4 +247,3 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     </>
   )
 }
-
