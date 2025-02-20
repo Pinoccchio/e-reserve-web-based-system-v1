@@ -125,7 +125,7 @@ export default function ReservationsPage() {
       showToast(`Successfully fetched ${typedReservations.length} reservations.`, "success")
     } catch (error) {
       console.error("Error fetching reservations:", error)
-      showToast("Failed to load reservations. Please try again.", "error")
+      //showToast("Failed to load reservations. Please try again.", "error")
       setReservations([])
       setIsLoading(false)
     }
