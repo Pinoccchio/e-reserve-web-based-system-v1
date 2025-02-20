@@ -47,7 +47,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const lastName = formData.get("lastName") as string
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -58,8 +58,6 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
           },
         },
       })
-
-      if (error) throw error
 
       showToast("Account created successfully. Welcome!", "success")
       setIsSignUpOpen(false)
@@ -88,12 +86,10 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     const password = formData.get("password") as string
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { data } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
-
-      if (error) throw error
 
       setIsSignInOpen(false)
       showToast("Welcome back!", "success")
