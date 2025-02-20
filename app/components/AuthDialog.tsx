@@ -224,4 +224,3 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     </>
   )
 }
-

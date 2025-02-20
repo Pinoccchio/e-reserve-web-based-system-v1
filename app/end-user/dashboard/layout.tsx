@@ -19,8 +19,8 @@ import { supabase } from "@/lib/supabase"
 const menuItems = [
   { icon: Home, label: "Dashboard", href: "/end-user/dashboard" },
   { icon: MapPin, label: "Facilities", href: "/end-user/dashboard/facilities" },
-  { icon: Calendar, label: "My Reservations", href: "/end-user/dashboard/reservations" },
-  { icon: Bell, label: "Notifications", href: "/end-user/dashboard/notifications" },
+  { icon: Calendar, label: "My Reservations", href: "/end-user/dashboard/reservation" },
+  { icon: Bell, label: "Notifications", href: "/end-user/dashboard/notification" },
 ]
 
 export default function EndUserDashboardLayout({

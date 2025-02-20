@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Eye, Calendar, MapPin, Users, Building, PhilippinePesoIcon } from "lucide-react"
+import { Search, Eye, Calendar, MapPin, Users, Building, CurrencyIcon as LucidePhilippinePeso } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -10,6 +10,7 @@ import { VirtualTourModal } from "@/components/VirtualTourModal"
 import Image from "next/image"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 
 interface Facility {
   id: number
@@ -53,11 +54,6 @@ export default function FacilitiesPage() {
       facility.name.toLowerCase().includes(searchTerm.toLowerCase()) &&
       (filterType === "all" || facility.type === filterType),
   )
-
-  const handleBookNow = (facilityId: number) => {
-    // TODO: Implement booking functionality
-    console.log("Booking facility:", facilityId)
-  }
 
   return (
     <div className="space-y-6">
@@ -118,7 +114,7 @@ export default function FacilitiesPage() {
                   Type: {facility.type}
                 </p>
                 <p className="text-sm text-gray-600 flex items-center">
-                  <PhilippinePesoIcon className="w-4 h-4 mr-2" />
+                  <LucidePhilippinePeso className="w-4 h-4 mr-2" />
                   Price: {facility.price_per_hour === 0 ? "Free" : `₱${facility.price_per_hour}/hour`}
                 </p>
               </div>
@@ -142,10 +138,12 @@ export default function FacilitiesPage() {
                   View Details
                 </Button>
               </div>
-              <Button className="w-full flex items-center justify-center" onClick={() => handleBookNow(facility.id)}>
-                <Calendar className="mr-2 h-4 w-4" />
-                Book Now
-              </Button>
+              <Link href={`/end-user/dashboard/facilities/book/${facility.id}`} passHref>
+                <Button className="w-full flex items-center justify-center">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  Book Now
+                </Button>
+              </Link>
             </CardFooter>
           </Card>
         ))}
