@@ -31,6 +31,16 @@ interface Reservation {
   }
 }
 
+interface SupabaseReservation {
+  id: number
+  start_time: string
+  end_time: string
+  status: string
+  facility: {
+    name: string | null
+  }[]
+}
+
 interface Props {
   statusFilter?: string
 }
@@ -41,7 +51,7 @@ export default function EndUserCalendar({ statusFilter = "all" }: Props) {
 
   useEffect(() => {
     fetchReservations()
-  }, [currentDate.getFullYear(), currentDate.getMonth(), statusFilter]) // Add statusFilter to dependency array
+  }, [currentDate, statusFilter]) // Add statusFilter to dependency array
 
   const fetchReservations = async () => {
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1).toISOString()
@@ -67,14 +77,17 @@ export default function EndUserCalendar({ statusFilter = "all" }: Props) {
 
     if (error) {
       console.error("Error fetching reservations:", error)
-    } else {
-      const transformedData: Reservation[] = data.map((item: any) => ({
+    } else if (data) {
+      const transformedData: Reservation[] = (data as SupabaseReservation[]).map((item) => ({
         id: item.id,
         start_time: item.start_time,
         end_time: item.end_time,
         status: item.status,
         facility: {
-          name: item.facility?.name || "Unknown Facility",
+          name:
+            item.facility && item.facility.length > 0
+              ? (item.facility[0].name ?? "Unknown Facility")
+              : "Unknown Facility",
         },
       }))
       setReservations(transformedData)

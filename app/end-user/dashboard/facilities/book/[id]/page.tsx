@@ -59,28 +59,29 @@ export default function BookingPage({ params }: PageProps) {
           .single();
 
         if (facilityError) throw facilityError;
-        setFacility(facilityData);
+
+        // Set facility state only if data is returned
+        if (facilityData) {
+          setFacility(facilityData);
+        }
 
         // Fetch user data
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+        const { data: userData, error: userError } = await supabase.auth.getUser();
 
         if (userError) throw userError;
 
-        if (user) {
-          const { data: userData, error: profileError } = await supabase
+        if (userData?.user) {
+          const { data: profileData, error: profileError } = await supabase
             .from("users")
             .select("first_name, last_name, email")
-            .eq("id", user.id)
+            .eq("id", userData.user.id)
             .single();
 
           if (profileError) throw profileError;
 
-          if (userData) {
-            setBookerName(`${userData.first_name} ${userData.last_name}`);
-            setBookerEmail(userData.email);
+          if (profileData) {
+            setBookerName(`${profileData.first_name} ${profileData.last_name}`);
+            setBookerEmail(profileData.email);
           }
         }
       } catch (error) {
@@ -216,7 +217,7 @@ export default function BookingPage({ params }: PageProps) {
 
       const receiptUrl = await uploadImage(receiptImage);
 
-      const { data, error } = await supabase.from("reservations").insert({
+      const { error } = await supabase.from("reservations").insert({
         user_id: userData.user.id,
         facility_id: facility.id,
         booker_name: bookerName,
