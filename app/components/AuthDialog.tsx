@@ -17,7 +17,7 @@ interface AuthDialogsProps {
 }
 
 export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps) {
-  const [isSignInOpen, setIsSignInOpen] = useState(isOpen || false)
+  const [isLogInOpen, setIsLogInOpen] = useState(isOpen || false)
   const [isSignUpOpen, setIsSignUpOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [showSignInPassword, setShowSignInPassword] = useState(false)
@@ -26,7 +26,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
 
   useEffect(() => {
     if (isOpen !== undefined) {
-      setIsSignInOpen(isOpen)
+      setIsLogInOpen(isOpen)
     }
   }, [isOpen])
 
@@ -87,7 +87,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
 
       if (signInError) throw signInError
 
-      setIsSignInOpen(false)
+      setIsLogInOpen(false)
       showToast("Welcome back!", "success")
       // Redirect based on account type
       const accountType = signInData.user?.user_metadata.account_type
@@ -107,8 +107,8 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
     }
   }
 
-  const updateIsSignInOpen = (open: boolean) => {
-    setIsSignInOpen(open)
+  const updateIsLogInOpen = (open: boolean) => {
+    setIsLogInOpen(open)
     onOpenChange?.(open)
   }
 
@@ -121,8 +121,8 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
               if (child.props.onClick) {
                 child.props.onClick(e)
               }
-              if (child.props.children === "Sign In") {
-                updateIsSignInOpen(true)
+              if (child.props.children === "Log In") {
+                updateIsLogInOpen(true)
               } else if (child.props.children === "Sign Up") {
                 openSignUpDialog()
               }
@@ -131,10 +131,10 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
         }
         return child
       })}
-      <Dialog open={isSignInOpen} onOpenChange={updateIsSignInOpen}>
+      <Dialog open={isLogInOpen} onOpenChange={updateIsLogInOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Sign In</DialogTitle>
+            <DialogTitle>Log In</DialogTitle>
             <DialogDescription>Enter your credentials to access your account.</DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={handleSignIn}>
@@ -168,7 +168,7 @@ export function AuthDialogs({ children, isOpen, onOpenChange }: AuthDialogsProps
               </div>
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? "Signing In..." : "Sign In"}
+              {isLoading ? "Logging In..." : "Log In"}
             </Button>
           </form>
         </DialogContent>

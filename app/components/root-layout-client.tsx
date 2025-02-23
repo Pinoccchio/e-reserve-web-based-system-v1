@@ -95,7 +95,7 @@ export function RootLayoutClient({
               </div>
               <div className="flex items-center space-x-2">
                 <AuthDialogs>
-                  <Button variant="ghost">Sign In</Button>
+                  <Button variant="ghost">Log In</Button>
                 </AuthDialogs>
                 <AuthDialogs>
                   <Button variant="outline">Sign Up</Button>
