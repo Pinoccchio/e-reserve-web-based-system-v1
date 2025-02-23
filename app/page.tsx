@@ -10,6 +10,7 @@ import { AuthDialogs } from "@/app/components/AuthDialog"
 import { VenueExploreDialog } from "@/components/VenueExploreDialog"
 import { ChatBot } from "@/components/ChatBot"
 import { ReservationCalendar } from "@/components/ReservationCalendar"
+import { VideoPlayer } from "@/components/VideoPlayer"
 
 async function getFeaturedVenues() {
   const { data: venues, error } = await supabase
@@ -127,6 +128,13 @@ export default async function Home() {
             <FeaturedVenues />
           </Suspense>
 
+          <div className="mt-16 mb-16">
+            <h2 className="text-3xl font-bold text-center mb-8">Promotional Video</h2>
+            <div className="max-w-[1200px] mx-auto px-4">
+              <VideoPlayerWrapper url="https://youtu.be/RYlgN-lLBLQ" />
+            </div>
+          </div>
+
           <div className="bg-white rounded-lg shadow-xl p-8 md:p-12 mt-16">
             <h2 className="text-3xl font-bold text-center mb-8">Why Choose E-Reserve?</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -237,5 +245,9 @@ async function FeaturedVenues() {
       ))}
     </div>
   )
+}
+
+function VideoPlayerWrapper({ url }: { url: string }) {
+  return <VideoPlayer url={url} />
 }
 

@@ -71,7 +71,6 @@ export function ReservationCalendar() {
         `)
         .gte("start_time", startOfMonth)
         .lte("start_time", endOfMonth)
-        .neq("status", "declined") // Exclude declined reservations
         .order("start_time", { ascending: true })
 
       if (error) throw error
@@ -117,7 +116,10 @@ export function ReservationCalendar() {
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
       const dayReservations = reservations.filter(
-        (reservation) => new Date(reservation.start_time).getDate() === date.getDate(),
+        (reservation) =>
+          new Date(reservation.start_time).getDate() === date.getDate() &&
+          new Date(reservation.start_time).getMonth() === date.getMonth() &&
+          new Date(reservation.start_time).getFullYear() === date.getFullYear(),
       )
       const isToday =
         date.getDate() === today.getDate() &&
