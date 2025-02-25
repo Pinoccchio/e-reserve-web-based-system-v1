@@ -8,7 +8,6 @@ import { supabase } from "@/lib/supabase"
 import { redirect } from "next/navigation"
 import { AuthDialogs } from "@/app/components/AuthDialog"
 import { VenueExploreDialog } from "@/components/VenueExploreDialog"
-import { ChatBot } from "@/components/ChatBot"
 import { ReservationCalendar } from "@/components/ReservationCalendar"
 import { VideoPlayer } from "@/components/VideoPlayer"
 
@@ -98,117 +97,114 @@ export default async function Home() {
   }
 
   return (
-    <>
-      <div className="min-h-screen bg-gradient-to-b from-blue-100 to-white">
-        <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-          {/* Hero Section */}
-          <div className="text-center mb-16">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-gray-900 mb-4">
-              Find Your Perfect Venue
-            </h1>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Discover and reserve the ideal space for your next event with E-Reserve. From intimate gatherings to grand
-              celebrations, we&apos;ve got you covered.
-            </p>
-            <div className="mt-8">
-              <AuthDialogs>
-                <VenueExploreDialog>
-                  <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
-                    Explore Venues
+    <div className="min-h-screen bg-gradient-to-b from-blue-100 to-white">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+        {/* Hero Section */}
+        <div className="text-center mb-16">
+          <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-gray-900 mb-4">
+            Find Your Perfect Venue
+          </h1>
+          <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+            Discover and reserve the ideal space for your next event with E-Reserve. From intimate gatherings to grand
+            celebrations, we&apos;ve got you covered.
+          </p>
+          <div className="mt-8">
+            <AuthDialogs>
+              <VenueExploreDialog>
+                <Button size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
+                  Explore Venues
+                </Button>
+              </VenueExploreDialog>
+            </AuthDialogs>
+          </div>
+        </div>
+
+        {/* Promotional Video Section */}
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold text-center mb-8">Promotional Video</h2>
+          <div className="max-w-[1200px] mx-auto px-4">
+            <VideoPlayerWrapper url="https://youtu.be/RYlgN-lLBLQ" />
+          </div>
+        </div>
+
+        {/* Featured Venues */}
+        <Suspense fallback={<div>Loading featured venues...</div>}>
+          <FeaturedVenues />
+        </Suspense>
+
+        {/* Reservation Calendar */}
+        <Suspense fallback={<div>Loading reservation calendar...</div>}>
+          <ReservationCalendar />
+        </Suspense>
+
+        {/* Recommended Artists & Photographers Section */}
+        <div className="mb-16">
+          <h2 className="text-3xl font-bold text-center mb-8">Recommended Artists & Photographers</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+            {recommendedArtists.map((artist, index) => (
+              <Card key={index} className="overflow-hidden transition-all duration-300 hover:shadow-lg">
+                <CardHeader className="p-0">
+                  <div className="relative w-full h-40">
+                    <Image
+                      src={artist.image || "/placeholder.svg"}
+                      alt={artist.name}
+                      fill
+                      className="object-cover"
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                    />
+                  </div>
+                </CardHeader>
+                <CardContent className="p-4">
+                  <CardTitle className="text-lg mb-1">{artist.name}</CardTitle>
+                  <CardDescription>{artist.type}</CardDescription>
+                </CardContent>
+                <CardFooter>
+                  <Button asChild variant="outline" className="w-full">
+                    <a
+                      href={artist.facebook}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-center"
+                    >
+                      <Facebook className="w-4 h-4 mr-2" />
+                      Visit Facebook
+                    </a>
                   </Button>
-                </VenueExploreDialog>
-              </AuthDialogs>
-            </div>
+                </CardFooter>
+              </Card>
+            ))}
           </div>
+        </div>
 
-          {/* Promotional Video Section */}
-          <div className="mb-16">
-            <h2 className="text-3xl font-bold text-center mb-8">Promotional Video</h2>
-            <div className="max-w-[1200px] mx-auto px-4">
-              <VideoPlayerWrapper url="https://youtu.be/RYlgN-lLBLQ" />
-            </div>
-          </div>
-
-          {/* Featured Venues */}
-          <Suspense fallback={<div>Loading featured venues...</div>}>
-            <FeaturedVenues />
-          </Suspense>
-
-          {/* Reservation Calendar */}
-          <Suspense fallback={<div>Loading reservation calendar...</div>}>
-            <ReservationCalendar />
-          </Suspense>
-
-          {/* Recommended Artists & Photographers Section */}
-          <div className="mb-16">
-            <h2 className="text-3xl font-bold text-center mb-8">Recommended Artists & Photographers</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {recommendedArtists.map((artist, index) => (
-                <Card key={index} className="overflow-hidden transition-all duration-300 hover:shadow-lg">
-                  <CardHeader className="p-0">
-                    <div className="relative w-full h-40">
-                      <Image
-                        src={artist.image || "/placeholder.svg"}
-                        alt={artist.name}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-                      />
-                    </div>
-                  </CardHeader>
-                  <CardContent className="p-4">
-                    <CardTitle className="text-lg mb-1">{artist.name}</CardTitle>
-                    <CardDescription>{artist.type}</CardDescription>
-                  </CardContent>
-                  <CardFooter>
-                    <Button asChild variant="outline" className="w-full">
-                      <a
-                        href={artist.facebook}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center justify-center"
-                      >
-                        <Facebook className="w-4 h-4 mr-2" />
-                        Visit Facebook
-                      </a>
-                    </Button>
-                  </CardFooter>
-                </Card>
-              ))}
-            </div>
-          </div>
-
-          {/* Why Choose E-Reserve? Section */}
-          <div className="bg-white rounded-lg shadow-xl p-8 md:p-12 mt-16">
-            <h2 className="text-3xl font-bold text-center mb-8">Why Choose E-Reserve?</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <div className="flex flex-col items-center text-center">
-                <div className="bg-blue-100 p-3 rounded-full mb-4">
-                  <CalendarIcon className="w-8 h-8 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Easy Booking</h3>
-                <p className="text-gray-600">Simple and intuitive reservation process for any type of event.</p>
+        {/* Why Choose E-Reserve? Section */}
+        <div className="bg-white rounded-lg shadow-xl p-8 md:p-12 mt-16">
+          <h2 className="text-3xl font-bold text-center mb-8">Why Choose E-Reserve?</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <div className="flex flex-col items-center text-center">
+              <div className="bg-blue-100 p-3 rounded-full mb-4">
+                <CalendarIcon className="w-8 h-8 text-blue-600" />
               </div>
-              <div className="flex flex-col items-center text-center">
-                <div className="bg-green-100 p-3 rounded-full mb-4">
-                  <MapPin className="w-8 h-8 text-green-600" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Diverse Locations</h3>
-                <p className="text-gray-600">Wide range of venues to suit every need and preference.</p>
+              <h3 className="text-xl font-semibold mb-2">Easy Booking</h3>
+              <p className="text-gray-600">Simple and intuitive reservation process for any type of event.</p>
+            </div>
+            <div className="flex flex-col items-center text-center">
+              <div className="bg-green-100 p-3 rounded-full mb-4">
+                <MapPin className="w-8 h-8 text-green-600" />
               </div>
-              <div className="flex flex-col items-center text-center">
-                <div className="bg-purple-100 p-3 rounded-full mb-4">
-                  <Clock className="w-8 h-8 text-purple-600" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">24/7 Support</h3>
-                <p className="text-gray-600">Round-the-clock assistance for all your reservation needs.</p>
+              <h3 className="text-xl font-semibold mb-2">Diverse Locations</h3>
+              <p className="text-gray-600">Wide range of venues to suit every need and preference.</p>
+            </div>
+            <div className="flex flex-col items-center text-center">
+              <div className="bg-purple-100 p-3 rounded-full mb-4">
+                <Clock className="w-8 h-8 text-purple-600" />
               </div>
+              <h3 className="text-xl font-semibold mb-2">24/7 Support</h3>
+              <p className="text-gray-600">Round-the-clock assistance for all your reservation needs.</p>
             </div>
           </div>
-        </section>
-      </div>
-      <ChatBot />
-    </>
+        </div>
+      </section>
+    </div>
   )
 }
 
