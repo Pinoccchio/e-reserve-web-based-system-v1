@@ -1,7 +1,8 @@
 "use client"
 
-import React, { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
+
+import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -84,92 +85,8 @@ export default function BookingPage({ params }: PageProps) {
   const [specialRequests, setSpecialRequests] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [showBookingForm, setShowBookingForm] = useState(false)
-  const [refreshKey, setRefreshKey] = useState(0)
-  const router = useRouter()
   const [showReceipt, setShowReceipt] = useState(false)
-  const [receiptData, setReceiptData] = useState<any>(null)
-
-  useEffect(() => {
-    const fetchFacilityAndReservations = async () => {
-      try {
-        setIsLoading(true)
-        const { data: facilityData, error: facilityError } = await supabase
-          .from("facilities")
-          .select("*")
-          .eq("id", facilityId)
-          .single()
-
-        if (facilityError) throw facilityError
-        if (facilityData) setFacility(facilityData)
-
-        const [reservationsData, paymentApprovalData] = await Promise.all([
-          supabase
-            .from("reservations")
-            .select(`
-              id,
-              start_time,
-              end_time,
-              status,
-              facility:facilities(name),
-              is_read
-            `)
-            .in("status", ["approved", "pending"]),
-          supabase
-            .from("payment_collector_approval")
-            .select(`
-              id,
-              start_time,
-              end_time,
-              status,
-              facility:facilities(name),
-              is_read
-            `)
-            .in("status", ["approved", "pending"]),
-        ])
-
-        if (reservationsData.error) throw reservationsData.error
-        if (paymentApprovalData.error) throw paymentApprovalData.error
-
-        const combinedReservations: Reservation[] = [
-          ...(reservationsData.data || []).map((r) => ({
-            ...r,
-            source: "admin" as const,
-            facility: Array.isArray(r.facility) ? r.facility[0] : r.facility,
-            is_read: r.is_read || "no",
-          })),
-          ...(paymentApprovalData.data || []).map((r) => ({
-            ...r,
-            source: "payment_collector" as const,
-            facility: Array.isArray(r.facility) ? r.facility[0] : r.facility,
-            is_read: r.is_read || "no",
-          })),
-        ]
-
-        setAllReservations(combinedReservations)
-
-        const { data: userData } = await supabase.auth.getUser()
-        if (userData?.user) {
-          const { data: profileData } = await supabase
-            .from("users")
-            .select("first_name, last_name, email")
-            .eq("id", userData.user.id)
-            .single()
-
-          if (profileData) {
-            setBookerName(`${profileData.first_name} ${profileData.last_name}`)
-            setBookerEmail(profileData.email)
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching data:", error)
-        showToast("Failed to fetch necessary data. Please try again.", "error")
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    fetchFacilityAndReservations()
-  }, [facilityId])
+  const [receiptData, setReceiptData] = useState<Record<string, any> | null>(null)
 
   const getReservationsForDate = (date: Date) => {
     return allReservations.filter((reservation) => {
@@ -435,7 +352,6 @@ export default function BookingPage({ params }: PageProps) {
       }
 
       showToast("Your booking request has been submitted for approval.", "success")
-      setRefreshKey((prevKey) => prevKey + 1)
       setShowBookingForm(false)
       setSelectedDate(undefined)
     } catch (error) {
@@ -667,6 +583,91 @@ export default function BookingPage({ params }: PageProps) {
       </Dialog>
     )
   }
+
+  useEffect(() => {
+    const fetchFacilityAndReservations = async () => {
+      try {
+        setIsLoading(true)
+        const { data: facilityData, error: facilityError } = await supabase
+          .from("facilities")
+          .select("*")
+          .eq("id", facilityId)
+          .single()
+
+        if (facilityError) throw facilityError
+        if (facilityData) setFacility(facilityData)
+
+        const [reservationsData, paymentApprovalData] = await Promise.all([
+          supabase
+            .from("reservations")
+            .select(`
+              id,
+              start_time,
+              end_time,
+              status,
+              facility:facilities(name),
+              is_read
+            `)
+            .in("status", ["approved", "pending"]),
+          supabase
+            .from("payment_collector_approval")
+            .select(`
+              id,
+              start_time,
+              end_time,
+              status,
+              facility:facilities(name),
+              is_read
+            `)
+            .in("status", ["approved", "pending"]),
+        ])
+
+        if (reservationsData.error) throw reservationsData.error
+        if (paymentApprovalData.error) throw paymentApprovalData.error
+
+        const combinedReservations: Reservation[] = [
+          ...(reservationsData.data || []).map((r) => ({
+            ...r,
+            source: "admin" as const,
+            facility: Array.isArray(r.facility) ? r.facility[0] : r.facility,
+            is_read: r.is_read || "no",
+          })),
+          ...(paymentApprovalData.data || []).map((r) => ({
+            ...r,
+            source: "payment_collector" as const,
+            facility: Array.isArray(r.facility) ? r.facility[0] : r.facility,
+            is_read: r.is_read || "no",
+          })),
+        ]
+
+        setAllReservations(combinedReservations)
+
+        const { data: userData } = await supabase.auth.getUser()
+        if (userData?.user) {
+          const { data: profileData } = await supabase
+            .from("users")
+            .select("first_name, last_name, email")
+            .eq("id", userData.user.id)
+            .single()
+
+          if (profileData) {
+            setBookerName(`${profileData.first_name} ${profileData.last_name}`)
+            setBookerEmail(profileData.email)
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching data:", error)
+        showToast("Failed to fetch necessary data. Please try again.", "error")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchFacilityAndReservations()
+  }, [facilityId])
+
+  const [refreshKey, setRefreshKey] = useState(0)
+  const router = useRouter()
 
   if (!facility) {
     return <div>Loading...</div>
