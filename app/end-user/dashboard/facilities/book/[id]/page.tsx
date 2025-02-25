@@ -666,9 +666,7 @@ export default function BookingPage({ params }: PageProps) {
     fetchFacilityAndReservations()
   }, [facilityId])
 
-  const [refreshKey, setRefreshKey] = useState(0)
-  const router = useRouter()
-
+  
   if (!facility) {
     return <div>Loading...</div>
   }
