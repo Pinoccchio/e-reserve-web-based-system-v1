@@ -1,7 +1,5 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-
 import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -69,6 +67,22 @@ const STATUS_COLORS = {
   completed: "bg-blue-100 text-blue-800 border-blue-200",
 }
 
+interface ReceiptData {
+  id: number
+  booking_id: number | null
+  facility_name: string
+  booker_name: string
+  booker_email: string
+  booker_phone: string
+  start_time: string
+  end_time: string
+  purpose: string
+  number_of_attendees: number | null
+  special_requests: string | null
+  status: string
+  price_per_hour: number
+}
+
 export default function BookingPage({ params }: PageProps) {
   const { id: facilityId } = React.use(params)
   const [facility, setFacility] = useState<Facility | null>(null)
@@ -86,7 +100,7 @@ export default function BookingPage({ params }: PageProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [showBookingForm, setShowBookingForm] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
-  const [receiptData, setReceiptData] = useState<Record<string, any> | null>(null)
+  const [receiptData, setReceiptData] = useState<ReceiptData | null>(null)
 
   const getReservationsForDate = (date: Date) => {
     return allReservations.filter((reservation) => {
@@ -494,7 +508,7 @@ export default function BookingPage({ params }: PageProps) {
       addLine("Start Time", format(parseISO(receiptData.start_time), "PPpp"))
       addLine("End Time", format(parseISO(receiptData.end_time), "PPpp"))
       addLine("Purpose", receiptData.purpose)
-      addLine("Number of Attendees", receiptData.number_of_attendees.toString())
+      addLine("Number of Attendees", receiptData.number_of_attendees?.toString() ?? "Not specified")
       addLine("Special Requests", receiptData.special_requests || "None")
       addLine("Status", receiptData.status)
       addLine("Destination", getDestination())
@@ -554,7 +568,7 @@ export default function BookingPage({ params }: PageProps) {
               <strong>Purpose:</strong> {receiptData.purpose}
             </p>
             <p>
-              <strong>Number of Attendees:</strong> {receiptData.number_of_attendees}
+              <strong>Number of Attendees:</strong> {receiptData.number_of_attendees ?? "Not specified"}
             </p>
             <p>
               <strong>Special Requests:</strong> {receiptData.special_requests || "None"}
@@ -666,7 +680,6 @@ export default function BookingPage({ params }: PageProps) {
     fetchFacilityAndReservations()
   }, [facilityId])
 
-  
   if (!facility) {
     return <div>Loading...</div>
   }
