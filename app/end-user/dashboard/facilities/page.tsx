@@ -10,7 +10,6 @@ import { VirtualTourModal } from "@/components/VirtualTourModal"
 import Image from "next/image"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
-import Link from "next/link"
 
 interface Facility {
   id: number
@@ -138,12 +137,13 @@ export default function FacilitiesPage() {
                   View Details
                 </Button>
               </div>
-              <Link href={`/end-user/dashboard/facilities/book/${facility.id}`} passHref>
-                <Button className="w-full flex items-center justify-center">
-                  <Calendar className="mr-2 h-4 w-4" />
-                  Book Now
-                </Button>
-              </Link>
+              <Button
+                className="w-full flex items-center justify-center"
+                onClick={() => router.push(`/end-user/dashboard/facilities/book/${facility.id}`)}
+              >
+                <Calendar className="mr-2 h-4 w-4" />
+                Book Now
+              </Button>
             </CardFooter>
           </Card>
         ))}

@@ -1,12 +1,11 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Home, Building, Calendar, Bell, ChevronDown, User, Menu, X, LogOut } from "lucide-react"
+import { Home, Building, Calendar, Bell, ChevronDown, User, Menu, X, LogOut, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -18,11 +17,13 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { supabase } from "@/lib/supabase"
 import { showToast } from "@/components/ui/toast"
+import { Badge } from "@/components/ui/badge"
 
 const menuItems = [
   { icon: Home, label: "Dashboard", href: "/admin/dashboard" },
   { icon: Building, label: "Facilities", href: "/admin/dashboard/facilities" },
   { icon: Calendar, label: "Reservation", href: "/admin/dashboard/reservation" },
+  { icon: MessageSquare, label: "Chat", href: "/admin/dashboard/chat" },
   { icon: Bell, label: "Notification", href: "/admin/dashboard/notification" },
 ]
 
@@ -34,6 +35,10 @@ export default function DashboardLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [adminName, setAdminName] = useState("")
+  const [unreadMessages, setUnreadMessages] = useState(0)
+  const [unreadReservations, setUnreadReservations] = useState(0)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const router = useRouter()
 
   useEffect(() => {
@@ -45,27 +50,110 @@ export default function DashboardLayout({
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  useEffect(() => {
-    const fetchAdminData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        const { data, error } = await supabase.from("users").select("first_name, last_name").eq("id", user.id).single()
+  const fetchAdminData = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (user) {
+      setCurrentUserId(user.id)
+      const { data, error } = await supabase.from("users").select("first_name, last_name").eq("id", user.id).single()
 
-        if (error) {
-          console.error("Error fetching admin data:", error)
-        } else if (data) {
-          setAdminName(`${data.first_name} ${data.last_name}`)
-        }
+      if (error) {
+        console.error("Error fetching admin data:", error)
+      } else if (data) {
+        setAdminName(`${data.first_name} ${data.last_name}`)
+      }
+    } else {
+      router.push("/")
+    }
+  }, [router])
+
+  useEffect(() => {
+    fetchAdminData()
+  }, [fetchAdminData])
+
+  const fetchUnreadCounts = useCallback(async () => {
+    if (currentUserId) {
+      const [
+        { count: messageCount, error: messageError },
+        { count: reservationCount, error: reservationError },
+        { count: notificationCount, error: notificationError },
+      ] = await Promise.all([
+        supabase
+          .from("messages")
+          .select("*", { count: "exact", head: true })
+          .eq("receiver_id", currentUserId)
+          .eq("is_read", "no"),
+        supabase.from("reservations").select("*", { count: "exact", head: true }).eq("is_read_admin", "no"),
+        supabase
+          .from("notifications")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", currentUserId)
+          .eq("is_read_admin", "no"),
+      ])
+
+      if (messageError) {
+        console.error("Error fetching unread messages:", messageError)
       } else {
-        // If no user is found, redirect to home page
-        router.push("/")
+        setUnreadMessages(messageCount || 0)
+      }
+
+      if (reservationError) {
+        console.error("Error fetching unread reservations:", reservationError)
+      } else {
+        setUnreadReservations(reservationCount || 0)
+      }
+
+      if (notificationError) {
+        console.error("Error fetching unread notifications:", notificationError)
+      } else {
+        setUnreadNotifications(notificationCount || 0)
       }
     }
+  }, [currentUserId])
 
-    fetchAdminData()
-  }, [router])
+  useEffect(() => {
+    if (currentUserId) {
+      fetchUnreadCounts()
+
+      const channel = supabase
+        .channel("admin-dashboard")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "messages",
+            filter: `receiver_id=eq.${currentUserId}`,
+          },
+          () => fetchUnreadCounts(),
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "reservations",
+          },
+          () => fetchUnreadCounts(),
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          () => fetchUnreadCounts(),
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [currentUserId, fetchUnreadCounts])
 
   const handleLogout = async () => {
     try {
@@ -81,7 +169,6 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* App Bar */}
       <header className="sticky top-0 z-50 bg-white shadow-sm">
         <div className="container mx-auto px-4">
           <div className="flex justify-between items-center py-2 md:py-4">
@@ -129,7 +216,6 @@ export default function DashboardLayout({
       </header>
 
       <div className="flex">
-        {/* Sidebar */}
         <aside
           className={`fixed left-0 top-[57px] md:top-[73px] h-[calc(100vh-57px)] md:h-[calc(100vh-73px)] bg-white shadow-md transition-all duration-300 ease-in-out z-40 ${
             isSidebarOpen ? "w-64 translate-x-0" : "w-64 -translate-x-full"
@@ -145,17 +231,22 @@ export default function DashboardLayout({
               >
                 <item.icon className="h-5 w-5" />
                 <span>{item.label}</span>
+                {item.label === "Chat" && unreadMessages > 0 && <Badge variant="destructive">{unreadMessages}</Badge>}
+                {item.label === "Reservation" && unreadReservations > 0 && (
+                  <Badge variant="destructive">{unreadReservations}</Badge>
+                )}
+                {item.label === "Notification" && unreadNotifications > 0 && (
+                  <Badge variant="destructive">{unreadNotifications}</Badge>
+                )}
               </Link>
             ))}
           </nav>
         </aside>
 
-        {/* Overlay for mobile */}
         {isSidebarOpen && isMobile && (
           <div className="fixed inset-0 bg-black/20 z-30" onClick={() => setIsSidebarOpen(false)} />
         )}
 
-        {/* Main Content */}
         <main className={`flex-1 transition-all duration-300 ease-in-out ${isSidebarOpen ? "md:ml-64" : "ml-0"}`}>
           <div className="container mx-auto px-4 py-8">{children}</div>
         </main>

@@ -2,11 +2,11 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
-import { Calendar, Bell, MapPin, ChevronDown, User, Menu, X, LogOut } from "lucide-react"
+import { Calendar, Bell, MapPin, ChevronDown, User, Menu, X, LogOut, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -18,10 +18,12 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { supabase } from "@/lib/supabase"
 import { showToast } from "@/components/ui/toast"
+import { Badge } from "@/components/ui/badge"
 
 const menuItems = [
   { icon: MapPin, label: "Facilities", href: "/end-user/dashboard/facilities" },
   { icon: Calendar, label: "My Reservations", href: "/end-user/dashboard/reservation" },
+  { icon: MessageSquare, label: "Chat", href: "/end-user/dashboard/chat" },
   { icon: Bell, label: "Notifications", href: "/end-user/dashboard/notification" },
 ]
 
@@ -33,7 +35,11 @@ export default function EndUserDashboardLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [userName, setUserName] = useState("")
+  const [unreadMessages, setUnreadMessages] = useState(0)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const router = useRouter()
+  const [unreadReservations, setUnreadReservations] = useState(0)
 
   useEffect(() => {
     const checkMobile = () => {
@@ -44,26 +50,134 @@ export default function EndUserDashboardLayout({
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
-  useEffect(() => {
-    const fetchUserData = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-      if (user) {
-        const { data, error } = await supabase.from("users").select("first_name, last_name").eq("id", user.id).single()
+  const fetchUserData = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (user) {
+      setCurrentUserId(user.id)
+      const { data, error } = await supabase.from("users").select("first_name, last_name").eq("id", user.id).single()
 
-        if (error) {
-          console.error("Error fetching user data:", error)
-        } else if (data) {
-          setUserName(`${data.first_name} ${data.last_name}`)
-        }
+      if (error) {
+        console.error("Error fetching user data:", error)
+      } else if (data) {
+        setUserName(`${data.first_name} ${data.last_name}`)
+      }
+    } else {
+      router.push("/")
+    }
+  }, [router])
+
+  useEffect(() => {
+    fetchUserData()
+  }, [fetchUserData])
+
+  const fetchUnreadCounts = useCallback(async () => {
+    if (currentUserId) {
+      const { count: messageCount, error: messageError } = await supabase
+        .from("messages")
+        .select("*", { count: "exact", head: true })
+        .eq("receiver_id", currentUserId)
+        .eq("is_read", "no")
+
+      if (messageError) {
+        console.error("Error fetching unread messages:", messageError)
       } else {
-        router.push("/")
+        setUnreadMessages(messageCount || 0)
+      }
+
+      const { count: notificationCount, error: notificationError } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", currentUserId)
+        .eq("read", false)
+
+      if (notificationError) {
+        console.error("Error fetching unread notifications:", notificationError)
+      } else {
+        setUnreadNotifications(notificationCount || 0)
+      }
+
+      // Fetch unread reservations count from both tables
+      const [{ count: reservationCount, error: reservationError }, { count: approvalCount, error: approvalError }] =
+        await Promise.all([
+          supabase
+            .from("reservations")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", currentUserId)
+            .eq("is_read", "no"),
+          supabase
+            .from("payment_collector_approval")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", currentUserId)
+            .eq("is_read", "no"),
+        ])
+
+      if (reservationError) {
+        console.error("Error fetching unread reservations:", reservationError)
+      }
+      if (approvalError) {
+        console.error("Error fetching unread payment collector approvals:", approvalError)
+      }
+
+      const totalUnreadReservations = (reservationCount || 0) + (approvalCount || 0)
+      setUnreadReservations(totalUnreadReservations)
+    }
+  }, [currentUserId])
+
+  useEffect(() => {
+    if (currentUserId) {
+      fetchUnreadCounts()
+
+      const channel = supabase
+        .channel("unread_counts")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "messages",
+            filter: `receiver_id=eq.${currentUserId}`,
+          },
+          () => fetchUnreadCounts(),
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          () => fetchUnreadCounts(),
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "reservations",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          () => fetchUnreadCounts(),
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "payment_collector_approval",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          () => fetchUnreadCounts(),
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
       }
     }
-
-    fetchUserData()
-  }, [router])
+  }, [currentUserId, fetchUnreadCounts])
 
   const handleLogout = async () => {
     try {
@@ -143,6 +257,13 @@ export default function EndUserDashboardLayout({
               >
                 <item.icon className="h-5 w-5" />
                 <span>{item.label}</span>
+                {item.label === "Chat" && unreadMessages > 0 && <Badge variant="destructive">{unreadMessages}</Badge>}
+                {item.label === "Notifications" && unreadNotifications > 0 && (
+                  <Badge variant="destructive">{unreadNotifications}</Badge>
+                )}
+                {item.label === "My Reservations" && unreadReservations > 0 && (
+                  <Badge variant="destructive">{unreadReservations}</Badge>
+                )}
               </Link>
             ))}
           </nav>

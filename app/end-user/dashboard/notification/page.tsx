@@ -1,10 +1,10 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Bell, Calendar, RefreshCw, Trash2 } from "lucide-react"
+import { Bell, Calendar, RefreshCw, Trash2, Check } from "lucide-react"
 import { format } from "date-fns"
 import { Button } from "@/components/ui/button"
 import { showToast } from "@/components/ui/toast"
@@ -34,26 +34,31 @@ export default function EndUserNotificationsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [confirmAction, setConfirmAction] = useState<{ type: "read" | "delete"; id: number } | null>(null)
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetchNotifications()
+  const fetchCurrentUser = useCallback(async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+    if (user) {
+      setCurrentUserId(user.id)
+    }
   }, [])
 
-  async function fetchNotifications() {
+  useEffect(() => {
+    fetchCurrentUser()
+  }, [fetchCurrentUser])
+
+  const fetchNotifications = useCallback(async () => {
+    if (!currentUserId) return
+
     setIsLoading(true)
     setError(null)
     try {
-      const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError) throw userError
-
-      if (!userData.user) {
-        throw new Error("No authenticated user found")
-      }
-
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
-        .eq("user_id", userData.user.id)
+        .eq("user_id", currentUserId)
         .order("created_at", { ascending: false })
 
       if (error) throw error
@@ -65,7 +70,31 @@ export default function EndUserNotificationsPage() {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [currentUserId])
+
+  useEffect(() => {
+    if (currentUserId) {
+      fetchNotifications()
+
+      const channel = supabase
+        .channel("notifications")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "notifications",
+            filter: `user_id=eq.${currentUserId}`,
+          },
+          () => fetchNotifications(),
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [currentUserId, fetchNotifications])
 
   const getNotificationIcon = (actionType: string) => {
     switch (actionType) {
@@ -150,31 +179,40 @@ export default function EndUserNotificationsPage() {
           ) : (
             <ul className="space-y-4">
               {notifications.map((notification) => (
-                <li key={notification.id} className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg">
-                  {getNotificationIcon(notification.action_type)}
-                  <div className="flex-1">
-                    <p className="text-sm text-gray-800">{notification.message}</p>
+                <li
+                  key={notification.id}
+                  className={`flex items-start space-x-4 p-4 rounded-lg transition-colors duration-200 ${
+                    notification.read ? "bg-gray-50" : "bg-blue-50 shadow-md"
+                  }`}
+                >
+                  <div className="flex-shrink-0 mt-1">{getNotificationIcon(notification.action_type)}</div>
+                  <div className="flex-grow">
+                    <p className={`text-sm ${notification.read ? "text-gray-800" : "text-blue-800 font-semibold"}`}>
+                      {notification.message}
+                    </p>
                     <p className="text-xs text-gray-500 mt-1">
                       {format(new Date(notification.created_at), "MMM d, yyyy h:mm a")}
                     </p>
                   </div>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 flex-shrink-0">
                     <Badge variant={notification.read ? "secondary" : "default"}>
                       {notification.read ? "Read" : "New"}
                     </Badge>
                     {!notification.read && (
                       <Button
-                        onClick={() => setConfirmAction({ type: "read", id: notification.id })}
+                        onClick={() => markAsRead(notification.id)}
                         variant="outline"
                         size="sm"
+                        className="text-green-600 hover:text-green-700"
                       >
-                        Mark as Read
+                        <Check className="h-4 w-4" />
                       </Button>
                     )}
                     <Button
                       onClick={() => setConfirmAction({ type: "delete", id: notification.id })}
                       variant="ghost"
                       size="sm"
+                      className="text-red-600 hover:text-red-700"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>

@@ -1,4 +1,5 @@
 "use client"
+
 import { useState, useEffect, use } from "react"
 import { useRouter } from "next/navigation"
 import Image from "next/image"
@@ -11,6 +12,7 @@ import { Loader } from "@googlemaps/js-api-loader"
 import { GoogleMapPicker } from "@/components/GoogleMapPicker"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog"
 import { AuthDialogs } from "@/app/components/AuthDialog"
+import { VideoPlayer } from "@/components/VideoPlayer"
 import type React from "react"
 
 interface Facility {
@@ -176,7 +178,7 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
           <Separator />
 
           <div className="space-y-4">
-            <h3 className="text-xl font-semibold">Facility Images</h3>
+            <h3 className="text-xl font-semibold">Facility Images and Video</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {facility.images.map((image) => (
                 <Dialog key={image.id}>
@@ -206,6 +208,9 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
                   </DialogContent>
                 </Dialog>
               ))}
+              <div className="aspect-video">
+                <VideoPlayer url="https://youtu.be/RYlgN-lLBLQ" />
+              </div>
             </div>
           </div>
         </CardContent>

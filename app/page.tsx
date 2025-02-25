@@ -101,6 +101,7 @@ export default async function Home() {
     <>
       <div className="min-h-screen bg-gradient-to-b from-blue-100 to-white">
         <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
+          {/* Hero Section */}
           <div className="text-center mb-16">
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-gray-900 mb-4">
               Find Your Perfect Venue
@@ -120,49 +121,26 @@ export default async function Home() {
             </div>
           </div>
 
-          <Suspense fallback={<div>Loading reservation calendar...</div>}>
-            <ReservationCalendar />
-          </Suspense>
-
-          <Suspense fallback={<div>Loading featured venues...</div>}>
-            <FeaturedVenues />
-          </Suspense>
-
-          <div className="mt-16 mb-16">
+          {/* Promotional Video Section */}
+          <div className="mb-16">
             <h2 className="text-3xl font-bold text-center mb-8">Promotional Video</h2>
             <div className="max-w-[1200px] mx-auto px-4">
               <VideoPlayerWrapper url="https://youtu.be/RYlgN-lLBLQ" />
             </div>
           </div>
 
-          <div className="bg-white rounded-lg shadow-xl p-8 md:p-12 mt-16">
-            <h2 className="text-3xl font-bold text-center mb-8">Why Choose E-Reserve?</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-              <div className="flex flex-col items-center text-center">
-                <div className="bg-blue-100 p-3 rounded-full mb-4">
-                  <CalendarIcon className="w-8 h-8 text-blue-600" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Easy Booking</h3>
-                <p className="text-gray-600">Simple and intuitive reservation process for any type of event.</p>
-              </div>
-              <div className="flex flex-col items-center text-center">
-                <div className="bg-green-100 p-3 rounded-full mb-4">
-                  <MapPin className="w-8 h-8 text-green-600" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">Diverse Locations</h3>
-                <p className="text-gray-600">Wide range of venues to suit every need and preference.</p>
-              </div>
-              <div className="flex flex-col items-center text-center">
-                <div className="bg-purple-100 p-3 rounded-full mb-4">
-                  <Clock className="w-8 h-8 text-purple-600" />
-                </div>
-                <h3 className="text-xl font-semibold mb-2">24/7 Support</h3>
-                <p className="text-gray-600">Round-the-clock assistance for all your reservation needs.</p>
-              </div>
-            </div>
-          </div>
+          {/* Featured Venues */}
+          <Suspense fallback={<div>Loading featured venues...</div>}>
+            <FeaturedVenues />
+          </Suspense>
 
-          <div className="mt-16">
+          {/* Reservation Calendar */}
+          <Suspense fallback={<div>Loading reservation calendar...</div>}>
+            <ReservationCalendar />
+          </Suspense>
+
+          {/* Recommended Artists & Photographers Section */}
+          <div className="mb-16">
             <h2 className="text-3xl font-bold text-center mb-8">Recommended Artists & Photographers</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
               {recommendedArtists.map((artist, index) => (
@@ -199,6 +177,34 @@ export default async function Home() {
               ))}
             </div>
           </div>
+
+          {/* Why Choose E-Reserve? Section */}
+          <div className="bg-white rounded-lg shadow-xl p-8 md:p-12 mt-16">
+            <h2 className="text-3xl font-bold text-center mb-8">Why Choose E-Reserve?</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+              <div className="flex flex-col items-center text-center">
+                <div className="bg-blue-100 p-3 rounded-full mb-4">
+                  <CalendarIcon className="w-8 h-8 text-blue-600" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Easy Booking</h3>
+                <p className="text-gray-600">Simple and intuitive reservation process for any type of event.</p>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                <div className="bg-green-100 p-3 rounded-full mb-4">
+                  <MapPin className="w-8 h-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">Diverse Locations</h3>
+                <p className="text-gray-600">Wide range of venues to suit every need and preference.</p>
+              </div>
+              <div className="flex flex-col items-center text-center">
+                <div className="bg-purple-100 p-3 rounded-full mb-4">
+                  <Clock className="w-8 h-8 text-purple-600" />
+                </div>
+                <h3 className="text-xl font-semibold mb-2">24/7 Support</h3>
+                <p className="text-gray-600">Round-the-clock assistance for all your reservation needs.</p>
+              </div>
+            </div>
+          </div>
         </section>
       </div>
       <ChatBot />
@@ -209,40 +215,43 @@ export default async function Home() {
 async function FeaturedVenues() {
   const venues = await getFeaturedVenues()
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
-      {venues.map((venue) => (
-        <Card key={venue.id} className="overflow-hidden transition-all duration-300 hover:shadow-lg">
-          <CardHeader className="p-0">
-            <div className="relative w-full h-48">
-              <Image
-                src={venue.images[0]?.image_url || "/libmanan-logo.png"}
-                alt={venue.name}
-                fill
-                className="object-cover"
-                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              />
-            </div>
-          </CardHeader>
-          <CardContent className="p-4 md:p-6">
-            <CardTitle className="text-xl mb-2">{venue.name}</CardTitle>
-            <CardDescription className="text-gray-600">
-              <div className="flex items-center mb-2">
-                <Users className="w-4 h-4 mr-2" />
-                Capacity: {venue.capacity}
+    <div className="mb-16">
+      <h2 className="text-3xl font-bold text-center mb-8">Featured Venues</h2>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+        {venues.map((venue) => (
+          <Card key={venue.id} className="overflow-hidden transition-all duration-300 hover:shadow-lg">
+            <CardHeader className="p-0">
+              <div className="relative w-full h-48">
+                <Image
+                  src={venue.images[0]?.image_url || "/libmanan-logo.png"}
+                  alt={venue.name}
+                  fill
+                  className="object-cover"
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                />
               </div>
-              <div className="flex items-center">
-                <MapPin className="w-4 h-4 mr-2" />
-                {venue.location}
-              </div>
-            </CardDescription>
-          </CardContent>
-          <CardFooter>
-            <Button asChild variant="outline" className="w-full">
-              <Link href={`/venues/${venue.id}`}>View Details</Link>
-            </Button>
-          </CardFooter>
-        </Card>
-      ))}
+            </CardHeader>
+            <CardContent className="p-4 md:p-6">
+              <CardTitle className="text-xl mb-2">{venue.name}</CardTitle>
+              <CardDescription className="text-gray-600">
+                <div className="flex items-center mb-2">
+                  <Users className="w-4 h-4 mr-2" />
+                  Capacity: {venue.capacity}
+                </div>
+                <div className="flex items-center">
+                  <MapPin className="w-4 h-4 mr-2" />
+                  {venue.location}
+                </div>
+              </CardDescription>
+            </CardContent>
+            <CardFooter>
+              <Button asChild variant="outline" className="w-full">
+                <Link href={`/venues/${venue.id}`}>View Details</Link>
+              </Button>
+            </CardFooter>
+          </Card>
+        ))}
+      </div>
     </div>
   )
 }

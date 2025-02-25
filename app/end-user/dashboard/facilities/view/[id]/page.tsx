@@ -12,6 +12,7 @@ import { Loader } from "@googlemaps/js-api-loader"
 import { GoogleMapPicker } from "@/components/GoogleMapPicker"
 import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog"
 import React from "react"
+import { VideoPlayer } from "@/components/VideoPlayer"
 
 interface Facility {
   id: number
@@ -89,8 +90,9 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
   }, [])
 
   const handleBookNow = () => {
-    // TODO: Implement booking functionality
-    console.log("Booking facility:", facility?.id)
+    if (facility) {
+      router.push(`/end-user/dashboard/facilities/book/${facility.id}`)
+    }
   }
 
   const handleNavigate = () => {
@@ -168,7 +170,7 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
           <Separator />
 
           <div className="space-y-4">
-            <h3 className="text-xl font-semibold">Facility Images</h3>
+            <h3 className="text-xl font-semibold">Facility Images and Video</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {facility.images.map((image) => (
                 <Dialog key={image.id}>
@@ -198,6 +200,9 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
                   </DialogContent>
                 </Dialog>
               ))}
+              <div className="aspect-video">
+                <VideoPlayer url="https://youtu.be/RYlgN-lLBLQ" />
+              </div>
             </div>
           </div>
         </CardContent>
@@ -212,3 +217,4 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
     </div>
   )
 }
+

@@ -47,6 +47,7 @@ interface Reservation {
   cancellation_reason: string | null
   facility: Facility | null
   source: "payment_approval" | "admin"
+  is_read: "yes" | "no"
 }
 
 export default function ReservationsPage() {
@@ -77,7 +78,8 @@ export default function ReservationsPage() {
           .from("reservations")
           .select(`
             *,
-            facility:facilities(name, location)
+            facility:facilities(name, location),
+            is_read
           `)
           .eq("user_id", user.id)
           .order("start_time", { ascending: true }),
@@ -85,7 +87,8 @@ export default function ReservationsPage() {
           .from("payment_collector_approval")
           .select(`
             *,
-            facility:facilities(name, location)
+            facility:facilities(name, location),
+            is_read
           `)
           .eq("user_id", user.id)
           .order("start_time", { ascending: true }),
@@ -184,6 +187,19 @@ export default function ReservationsPage() {
     }
   }
 
+  const updateIsRead = async (id: number, source: "payment_approval" | "admin") => {
+    const table = source === "payment_approval" ? "payment_collector_approval" : "reservations"
+    const { error } = await supabase.from(table).update({ is_read: "yes" }).eq("id", id)
+
+    if (error) {
+      console.error("Error updating is_read status:", error)
+    } else {
+      setReservations(
+        reservations.map((res) => (res.id === id && res.source === source ? { ...res, is_read: "yes" } : res)),
+      )
+    }
+  }
+
   const filteredReservations = reservations.filter(
     (reservation) => statusFilter === "all" || reservation.status === statusFilter,
   )
@@ -258,12 +274,24 @@ export default function ReservationsPage() {
                   {filteredReservations.map((reservation) => (
                     <div
                       key={reservation.id}
-                      className="p-4 rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer"
-                      onClick={() => setSelectedReservation(reservation)}
+                      className={`p-4 rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer ${
+                        reservation.is_read === "no" ? "bg-blue-50" : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedReservation(reservation)
+                        if (reservation.is_read === "no") {
+                          updateIsRead(reservation.id, reservation.source)
+                        }
+                      }}
                     >
                       <div className="flex flex-col justify-between h-full">
                         <div>
-                          <h4 className="font-medium">{reservation.facility?.name}</h4>
+                          <h4 className="font-medium">
+                            {reservation.facility?.name}
+                            {reservation.is_read === "no" && (
+                              <span className="ml-2 inline-block w-2 h-2 bg-blue-500 rounded-full"></span>
+                            )}
+                          </h4>
                           <p className="text-sm text-gray-500">
                             {format(parseISO(reservation.start_time), "MMM d, yyyy h:mm a")} -{" "}
                             {format(parseISO(reservation.end_time), "h:mm a")}

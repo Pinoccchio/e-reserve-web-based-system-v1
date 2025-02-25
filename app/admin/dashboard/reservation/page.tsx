@@ -35,6 +35,9 @@ interface Reservation {
   facility_id: number
   facility: Facility
   cancellation_reason: string | null
+  is_read_admin: "yes" | "no"
+  admin_action_by: string | null
+  admin_action_at: string | null
 }
 
 export default function ReservationsPage() {
@@ -86,10 +89,11 @@ export default function ReservationsPage() {
 
       if (!reservationData) throw new Error("Reservation data not found")
 
-      const updateData = {
+      const updateData: Partial<Reservation> = {
         status: newStatus,
-        admin_action_by: userData.user?.id,
+        admin_action_by: userData.user?.id ?? null,
         admin_action_at: new Date().toISOString(),
+        is_read_admin: "yes",
       }
 
       // Update the reservations table
@@ -131,6 +135,8 @@ export default function ReservationsPage() {
         message: `Your reservation for ${reservationData.facility.name} has been ${newStatus} by the admin.`,
         action_type: `reservation_${newStatus}`,
         related_id: reservationId,
+        is_read: "no",
+        is_read_admin: "no",
       }
 
       const { error: endUserNotificationError } = await supabase.from("notifications").insert(endUserNotificationData)
@@ -143,11 +149,36 @@ export default function ReservationsPage() {
         message: `You have ${newStatus} the reservation for ${reservationData.facility.name} by ${reservationData.booker_name}.`,
         action_type: `reservation_${newStatus}`,
         related_id: reservationId,
+        is_read: "no",
+        is_read_admin: "no",
       }
 
       const { error: adminNotificationError } = await supabase.from("notifications").insert(adminNotificationData)
 
       if (adminNotificationError) throw adminNotificationError
+
+      // Create notification for payment collectors
+      const { data: paymentCollectors, error: paymentCollectorError } = await supabase
+        .from("users")
+        .select("id")
+        .eq("account_type", "payment_collector")
+
+      if (paymentCollectorError) throw paymentCollectorError
+
+      const paymentCollectorNotifications = paymentCollectors.map((collector) => ({
+        user_id: collector.id,
+        message: `Reservation for ${reservationData.facility.name} has been ${newStatus} by the admin.`,
+        action_type: `reservation_${newStatus}`,
+        related_id: reservationId,
+        is_read: "no",
+        is_read_admin: "no",
+      }))
+
+      const { error: paymentCollectorNotificationError } = await supabase
+        .from("notifications")
+        .insert(paymentCollectorNotifications)
+
+      if (paymentCollectorNotificationError) throw paymentCollectorNotificationError
 
       setReservations(
         reservations.map((reservation) =>
@@ -162,6 +193,23 @@ export default function ReservationsPage() {
         `Error updating reservation status: ${error instanceof Error ? error.message : "Unknown error"}`,
         "error",
       )
+    }
+  }
+
+  const markAsRead = async (reservationId: string) => {
+    try {
+      const { error } = await supabase.from("reservations").update({ is_read_admin: "yes" }).eq("id", reservationId)
+
+      if (error) throw error
+
+      setReservations(
+        reservations.map((reservation) =>
+          reservation.id === reservationId ? { ...reservation, is_read_admin: "yes" } : reservation,
+        ),
+      )
+    } catch (error) {
+      console.error("Error marking reservation as read:", error)
+      showToast("Failed to mark reservation as read", "error")
     }
   }
 
@@ -259,7 +307,10 @@ export default function ReservationsPage() {
                     </TableHeader>
                     <TableBody>
                       {filteredReservations.map((reservation) => (
-                        <TableRow key={reservation.id}>
+                        <TableRow
+                          key={reservation.id}
+                          className={reservation.is_read_admin === "no" ? "bg-blue-50" : ""}
+                        >
                           <TableCell className="font-medium">{reservation.booker_name}</TableCell>
                           <TableCell>{reservation.facility.name}</TableCell>
                           <TableCell>{format(new Date(reservation.start_time), "MMM d, yyyy h:mm a")}</TableCell>
@@ -272,7 +323,15 @@ export default function ReservationsPage() {
                           <TableCell className="text-right">
                             <Dialog>
                               <DialogTrigger asChild>
-                                <Button variant="outline" size="sm">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (reservation.is_read_admin === "no") {
+                                      markAsRead(reservation.id)
+                                    }
+                                  }}
+                                >
                                   View Details
                                 </Button>
                               </DialogTrigger>
