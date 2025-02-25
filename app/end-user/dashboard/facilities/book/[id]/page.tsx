@@ -34,6 +34,7 @@ interface Reservation {
     name: string
   }
   is_read: "yes" | "no"
+  source: "admin" | "payment_collector"
 }
 
 interface PageProps {
@@ -101,19 +102,50 @@ export default function BookingPage({ params }: PageProps) {
         if (facilityError) throw facilityError
         if (facilityData) setFacility(facilityData)
 
-        const { data: reservationData, error: reservationError } = await supabase
-          .from("reservations")
-          .select(`
-            id,
-            start_time,
-            end_time,
-            status,
-            facility:facilities(name)
-          `)
-          .in("status", ["approved", "pending"])
+        const [reservationsData, paymentApprovalData] = await Promise.all([
+          supabase
+            .from("reservations")
+            .select(`
+              id,
+              start_time,
+              end_time,
+              status,
+              facility:facilities(name),
+              is_read
+            `)
+            .in("status", ["approved", "pending"]),
+          supabase
+            .from("payment_collector_approval")
+            .select(`
+              id,
+              start_time,
+              end_time,
+              status,
+              facility:facilities(name),
+              is_read
+            `)
+            .in("status", ["approved", "pending"]),
+        ])
 
-        if (reservationError) throw reservationError
-        setAllReservations(reservationData || [])
+        if (reservationsData.error) throw reservationsData.error
+        if (paymentApprovalData.error) throw paymentApprovalData.error
+
+        const combinedReservations: Reservation[] = [
+          ...(reservationsData.data || []).map((r) => ({
+            ...r,
+            source: "admin" as const,
+            facility: Array.isArray(r.facility) ? r.facility[0] : r.facility,
+            is_read: r.is_read || "no",
+          })),
+          ...(paymentApprovalData.data || []).map((r) => ({
+            ...r,
+            source: "payment_collector" as const,
+            facility: Array.isArray(r.facility) ? r.facility[0] : r.facility,
+            is_read: r.is_read || "no",
+          })),
+        ]
+
+        setAllReservations(combinedReservations)
 
         const { data: userData } = await supabase.auth.getUser()
         if (userData?.user) {
@@ -228,6 +260,9 @@ export default function BookingPage({ params }: PageProps) {
                 className={`w-full justify-start text-xs ${STATUS_COLORS[reservation.status]}`}
               >
                 {reservation.facility.name}
+                <span className="ml-1 text-[10px]">
+                  ({reservation.source === "admin" ? "Admin" : "Payment Collector"})
+                </span>
               </Badge>
             ))}
             {hasConflict && (
