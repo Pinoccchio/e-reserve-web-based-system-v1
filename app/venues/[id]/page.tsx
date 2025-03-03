@@ -1,63 +1,59 @@
-"use client"
-
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
-import { Separator } from "@/components/ui/separator"
-import {
-  Calendar,
-  MapPin,
-  Users,
-  CurrencyIcon as LucidePhilippinePeso,
-  ArrowLeft,
-  Navigation,
-  Video,
-} from "lucide-react"
-import { supabase } from "@/lib/supabase"
-import { Loader } from "@googlemaps/js-api-loader"
-import { GoogleMapPicker } from "@/components/GoogleMapPicker"
-import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog"
-import type React from "react"
-import { VideoPlayer } from "@/components/VideoPlayer"
-import { AuthDialogs } from "@/app/components/AuthDialog"
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Calendar, MapPin, Users, CurrencyIcon as LucidePhilippinePeso, ArrowLeft, Navigation, Video } from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { Loader } from "@googlemaps/js-api-loader";
+import { GoogleMapPicker } from "@/components/GoogleMapPicker";
+import { Dialog, DialogContent, DialogTrigger, DialogTitle } from "@/components/ui/dialog";
+import type React from "react";
+import { VideoPlayer } from "@/components/VideoPlayer";
+import { AuthDialogs } from "@/app/components/AuthDialog";
 
 interface Facility {
-  id: number
-  name: string
-  location: string
-  latitude: number
-  longitude: number
-  description: string
-  capacity: number
-  type: string
-  price_per_hour: number
-  images: { id: number; image_url: string }[]
-  video_url: string
+  id: number;
+  name: string;
+  location: string;
+  latitude: number;
+  longitude: number;
+  description: string;
+  capacity: number;
+  type: string;
+  price_per_hour: number;
+  images: { id: number; image_url: string }[];
+  video_url: string;
 }
 
 interface VenueStats {
-  purpose: string
-  booking_count: number
-  total_attendees: number
+  purpose: string;
+  booking_count: number;
+  total_attendees: number;
 }
 
-const VisuallyHidden = ({ children }: { children: React.ReactNode }) => <span className="sr-only">{children}</span>
+const VisuallyHidden = ({ children }: { children: React.ReactNode }) => <span className="sr-only">{children}</span>;
 
-export default function ViewFacilityPage({ params }: { params: { id: string } }) {
-  const { id: facilityId } = params
-  const [facility, setFacility] = useState<Facility | null>(null)
-  const [venueStats, setVenueStats] = useState<VenueStats[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
-  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
-  const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false)
-  const router = useRouter()
+interface ViewFacilityPageProps {
+  params: {
+    id: string;
+  };
+}
+
+export default function ViewFacilityPage({ params }: ViewFacilityPageProps) {
+  const { id: facilityId } = params;
+  const [facility, setFacility] = useState<Facility | null>(null);
+  const [venueStats, setVenueStats] = useState<VenueStats[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
+  const [isAuthDialogOpen, setIsAuthDialogOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchFacilityAndStats = async () => {
-      setIsLoading(true)
+      setIsLoading(true);
       const [facilityData, statsData] = await Promise.all([
         supabase
           .from("facilities")
@@ -70,32 +66,32 @@ export default function ViewFacilityPage({ params }: { params: { id: string } })
           .eq("facility_id", facilityId)
           .order("booking_count", { ascending: false })
           .limit(5),
-      ])
+      ]);
 
       if (facilityData.error) {
-        console.error("Error fetching facility:", facilityData.error)
+        console.error("Error fetching facility:", facilityData.error);
       } else {
-        setFacility(facilityData.data)
+        setFacility(facilityData.data);
       }
 
       if (statsData.error) {
-        console.error("Error fetching venue stats:", statsData.error)
+        console.error("Error fetching venue stats:", statsData.error);
       } else {
-        setVenueStats(statsData.data)
+        setVenueStats(statsData.data);
       }
 
-      setIsLoading(false)
-    }
+      setIsLoading(false);
+    };
 
-    fetchFacilityAndStats()
-  }, [facilityId])
+    fetchFacilityAndStats();
+  }, [facilityId]);
 
   useEffect(() => {
     const loader = new Loader({
       apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
       version: "weekly",
       libraries: ["places"],
-    })
+    });
 
     loader
       .load()
@@ -106,38 +102,38 @@ export default function ViewFacilityPage({ params }: { params: { id: string } })
               setUserLocation({
                 lat: position.coords.latitude,
                 lng: position.coords.longitude,
-              })
+              });
             },
             () => {
-              console.error("Error: The Geolocation service failed.")
-            },
-          )
+              console.error("Error: The Geolocation service failed.");
+            }
+          );
         } else {
-          console.error("Error: Your browser doesn't support geolocation.")
+          console.error("Error: Your browser doesn't support geolocation.");
         }
       })
       .catch((error) => {
-        console.error("Error loading Google Maps API:", error)
-      })
-  }, [])
+        console.error("Error loading Google Maps API:", error);
+      });
+  }, []);
 
   const handleBookNow = () => {
-    setIsAuthDialogOpen(true)
-  }
+    setIsAuthDialogOpen(true);
+  };
 
   const handleNavigate = () => {
     if (facility && userLocation) {
-      const url = `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lng}&destination=${facility.latitude},${facility.longitude}`
-      window.open(url, "_blank")
+      const url = `https://www.google.com/maps/dir/?api=1&origin=${userLocation.lat},${userLocation.lng}&destination=${facility.latitude},${facility.longitude}`;
+      window.open(url, "_blank");
     }
-  }
+  };
 
   if (isLoading) {
-    return <div className="text-center py-12">Loading...</div>
+    return <div className="text-center py-12">Loading...</div>;
   }
 
   if (!facility) {
-    return <div className="text-center py-12">Facility not found</div>
+    return <div className="text-center py-12">Facility not found</div>;
   }
 
   const renderMarkerContent = () => {
@@ -174,8 +170,8 @@ export default function ViewFacilityPage({ params }: { params: { id: string } })
           </Button>
         )}
       </div>
-    )
-  }
+    );
+  };
 
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
@@ -318,6 +314,5 @@ export default function ViewFacilityPage({ params }: { params: { id: string } })
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }
-
