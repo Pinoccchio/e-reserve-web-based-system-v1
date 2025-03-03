@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -17,11 +19,10 @@ import { motion, AnimatePresence } from "framer-motion"
 
 declare global {
   interface Window {
-    google: {
-      maps: {
-        places: {
-          Autocomplete: new (input: HTMLInputElement, options: AutocompleteOptions) => google.maps.places.Autocomplete
-        }
+    google: any
+    maps: {
+      places: {
+        Autocomplete: new (input: HTMLInputElement, options: AutocompleteOptions) => google.maps.places.Autocomplete
       }
     }
   }
@@ -67,31 +68,37 @@ export default function AddFacilityPage() {
     })
 
     loader.load().then(() => {
-      const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
-      const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
-        fields: ["formatted_address", "geometry"],
-      })
+      if (window.google && window.google.maps && window.google.maps.places) {
+        const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
+        const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
+          fields: ["formatted_address", "geometry"],
+        })
 
-      autocompleteInstance.addListener("place_changed", () => {
-        const place = autocompleteInstance.getPlace()
-        if (place.geometry?.location) {
-          const newLocation = {
-            address: place.formatted_address || "",
-            lat: place.geometry.location.lat(),
-            lng: place.geometry.location.lng(),
+        autocompleteInstance.addListener("place_changed", () => {
+          const place = autocompleteInstance.getPlace()
+          if (place.geometry?.location) {
+            const newLocation = {
+              address: place.formatted_address || "",
+              lat: place.geometry.location.lat(),
+              lng: place.geometry.location.lng(),
+            }
+            setLocation(newLocation)
+            setSearchQuery(newLocation.address)
+            setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
           }
-          setLocation(newLocation)
-          setSearchQuery(newLocation.address)
-          setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
-        }
-      })
+        })
+      } else {
+        console.error("Google Maps Places API not loaded correctly.")
+      }
     })
   }, [])
 
-  const handleLocationSelect = (selectedLocation: Location | null) => {
-    setLocation(selectedLocation)
-    setSearchQuery(selectedLocation ? selectedLocation.address : "")
-    setSearchedLocation(selectedLocation ? { lat: selectedLocation.lat, lng: selectedLocation.lng } : null)
+  const handleLocationSelect = (selectedLocation: { address: string; lat: number; lng: number } | null) => {
+    if (selectedLocation) {
+      setLocation(selectedLocation)
+      setSearchQuery(selectedLocation.address)
+      setSearchedLocation({ lat: selectedLocation.lat, lng: selectedLocation.lng })
+    }
   }
 
   const clearLocation = () => {
@@ -238,6 +245,7 @@ export default function AddFacilityPage() {
                     onLocationSelect={handleLocationSelect}
                     initialLocation={location ? { lat: location.lat, lng: location.lng } : bagumbayanCenter}
                     searchedLocation={searchedLocation || bagumbayanCenter}
+                    isAdmin={true}
                   />
                 </div>
               </div>

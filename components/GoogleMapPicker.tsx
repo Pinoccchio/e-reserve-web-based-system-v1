@@ -4,9 +4,17 @@ import type React from "react"
 import { useState, useCallback, useRef, useEffect } from "react"
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from "@react-google-maps/api"
 
+interface Location {
+  lat: number
+  lng: number
+}
+
 interface GoogleMapPickerProps {
-  initialLocation: { lat: number; lng: number }
+  initialLocation: Location
   markerContent?: React.ReactNode
+  onLocationSelect?: (location: { address: string; lat: number; lng: number } | null) => void
+  isAdmin?: boolean
+  searchedLocation?: Location
 }
 
 const mapContainerStyle = {
@@ -37,7 +45,13 @@ const mapOptions: google.maps.MapOptions = {
   ],
 }
 
-export function GoogleMapPicker({ initialLocation, markerContent }: GoogleMapPickerProps) {
+export function GoogleMapPicker({
+  initialLocation,
+  markerContent,
+  onLocationSelect,
+  isAdmin = false,
+  searchedLocation,
+}: GoogleMapPickerProps) {
   const { isLoaded } = useJsApiLoader({
     id: "google-map-script",
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
@@ -46,15 +60,16 @@ export function GoogleMapPicker({ initialLocation, markerContent }: GoogleMapPic
 
   const [map, setMap] = useState<google.maps.Map | null>(null)
   const [infoWindowOpen, setInfoWindowOpen] = useState(false)
+  const [markerPosition, setMarkerPosition] = useState<Location>(initialLocation)
   const isDragging = useRef(false)
 
   const onLoad = useCallback(
     (map: google.maps.Map) => {
-      map.setCenter(initialLocation)
+      map.setCenter(searchedLocation || initialLocation)
       setMap(map)
       setInfoWindowOpen(true)
     },
-    [initialLocation],
+    [initialLocation, searchedLocation],
   )
 
   const onUnmount = useCallback(() => {
@@ -66,69 +81,97 @@ export function GoogleMapPicker({ initialLocation, markerContent }: GoogleMapPic
   }
 
   useEffect(() => {
+    if (searchedLocation) {
+      setMarkerPosition(searchedLocation)
+      map?.panTo(searchedLocation)
+    }
+  }, [searchedLocation, map])
+
+  useEffect(() => {
     if (map) {
-      const dragStartListener = map.addListener("dragstart", () => {
-        isDragging.current = true
-      })
-
-      const dragEndListener = map.addListener("dragend", () => {
-        isDragging.current = false
-        setTimeout(() => {
-          if (!isDragging.current) {
-            map.panTo(initialLocation)
-          }
-        }, 200) // Short delay to ensure drag has fully ended
-      })
-
-      const mouseDownListener = map.addListener("mousedown", () => {
-        isDragging.current = true
-      })
-
-      const mouseUpListener = map.addListener("mouseup", () => {
-        isDragging.current = false
-        setTimeout(() => {
-          if (!isDragging.current) {
-            map.panTo(initialLocation)
-          }
-        }, 200)
-      })
-
-      const touchStartListener = map.addListener("touchstart", () => {
-        isDragging.current = true
-      })
-
-      const touchEndListener = map.addListener("touchend", () => {
-        isDragging.current = false
-        setTimeout(() => {
-          if (!isDragging.current) {
-            map.panTo(initialLocation)
-          }
-        }, 200)
-      })
+      const listeners = [
+        map.addListener("dragstart", () => {
+          isDragging.current = true
+        }),
+        map.addListener("dragend", () => {
+          isDragging.current = false
+          setTimeout(() => {
+            if (!isDragging.current) {
+              map.panTo(markerPosition)
+            }
+          }, 200)
+        }),
+        map.addListener("mousedown", () => {
+          isDragging.current = true
+        }),
+        map.addListener("mouseup", () => {
+          isDragging.current = false
+          setTimeout(() => {
+            if (!isDragging.current) {
+              map.panTo(markerPosition)
+            }
+          }, 200)
+        }),
+        map.addListener("touchstart", () => {
+          isDragging.current = true
+        }),
+        map.addListener("touchend", () => {
+          isDragging.current = false
+          setTimeout(() => {
+            if (!isDragging.current) {
+              map.panTo(markerPosition)
+            }
+          }, 200)
+        }),
+      ]
 
       return () => {
-        if (google && google.maps) {
-          google.maps.event.removeListener(dragStartListener)
-          google.maps.event.removeListener(dragEndListener)
-          google.maps.event.removeListener(mouseDownListener)
-          google.maps.event.removeListener(mouseUpListener)
-          google.maps.event.removeListener(touchStartListener)
-          google.maps.event.removeListener(touchEndListener)
-        }
+        listeners.forEach((listener) => {
+          if (window.google && window.google.maps) {
+            google.maps.event.removeListener(listener)
+          }
+        })
       }
     }
-  }, [map, initialLocation])
+  }, [map, markerPosition])
+
+  const onClick = useCallback(
+    (e: google.maps.MapMouseEvent) => {
+      if (isAdmin && e.latLng) {
+        const newPosition = { lat: e.latLng.lat(), lng: e.latLng.lng() }
+        setMarkerPosition(newPosition)
+        updateLocationInfo(e.latLng)
+      }
+    },
+    [isAdmin],
+  )
+
+  const updateLocationInfo = (position: google.maps.LatLng) => {
+    if (onLocationSelect) {
+      const geocoder = new google.maps.Geocoder()
+      geocoder.geocode({ location: position }, (results, status) => {
+        if (status === "OK" && results && results[0]) {
+          onLocationSelect({
+            address: results[0].formatted_address,
+            lat: position.lat(),
+            lng: position.lng(),
+          })
+        }
+      })
+    }
+  }
 
   return isLoaded ? (
     <div className="relative overflow-hidden rounded-lg">
       <GoogleMap
         mapContainerStyle={mapContainerStyle}
-        center={initialLocation}
+        center={searchedLocation || initialLocation}
         options={mapOptions}
         onLoad={onLoad}
         onUnmount={onUnmount}
+        onClick={onClick}
       >
-        <Marker position={initialLocation} onClick={toggleInfoWindow}>
+        <Marker position={markerPosition} onClick={toggleInfoWindow}>
           {infoWindowOpen && markerContent && (
             <InfoWindow onCloseClick={toggleInfoWindow}>
               <div>{markerContent}</div>
