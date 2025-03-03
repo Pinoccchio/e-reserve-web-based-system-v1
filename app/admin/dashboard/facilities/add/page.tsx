@@ -26,10 +26,6 @@ declare global {
   }
 }
 
-interface AutocompleteOptions {
-  fields: string[]
-}
-
 const bagumbayanCenter = {
   lat: 13.3553,
   lng: 123.3242,

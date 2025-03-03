@@ -17,14 +17,13 @@ import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
 import Image from "next/image"
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 declare global {
   interface Window {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     google: any
   }
-}
-
-interface AutocompleteOptions {
-  fields: string[]
 }
 
 const bagumbayanCenter = {
