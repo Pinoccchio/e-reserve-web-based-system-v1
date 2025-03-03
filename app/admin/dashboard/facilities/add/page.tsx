@@ -20,11 +20,6 @@ import { motion, AnimatePresence } from "framer-motion"
 declare global {
   interface Window {
     google: any
-    maps: {
-      places: {
-        Autocomplete: new (input: HTMLInputElement, options: AutocompleteOptions) => google.maps.places.Autocomplete
-      }
-    }
   }
 }
 
