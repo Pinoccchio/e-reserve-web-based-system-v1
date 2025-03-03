@@ -56,34 +56,39 @@ async function checkUserSession() {
 
 const recommendedArtists = [
   {
-    name: "Salceda Digital Studio ",
-    type: "Digital Studio ",
+    name: "Salceda Digital Studio",
+    type: "Photographer",
     image: "/images/photographers/salceda.jpg",
     facebook: "https://www.facebook.com/profile.php?id=100064036205179",
+    category: "Photographers",
   },
   {
     name: "Mark Lopez",
     type: "Makeup Artist",
     image: "/images/artists/mark-lopez.jpg",
     facebook: "https://www.facebook.com/markstefano.amagan",
+    category: "Makeup Artists",
   },
   {
     name: "Ri Ca",
     type: "Makeup Artist",
     image: "/images/artists/rica.jpg",
     facebook: "https://www.facebook.com/ri.ca.459685",
+    category: "Makeup Artists",
   },
   {
-    name: "Yecats Catering Services ",
-    type: "Catering Services ",
+    name: "Yecats Catering Services",
+    type: "Catering Services",
     image: "/images/catering-services/yecats.jpg",
     facebook: "https://www.facebook.com/profile.php?id=100057139703454",
+    category: "Catering Services",
   },
   {
-    name: "Polmike Catering Services ",
-    type: "Catering Services ",
+    name: "Polmike Catering Services",
+    type: "Catering Services",
     image: "/images/catering-services/polmike.jpg",
     facebook: "https://www.facebook.com/Applejoybalmes",
+    category: "Catering Services",
   },
 ]
 
@@ -139,41 +144,57 @@ export default async function Home() {
 
         {/* Recommended Artists & Photographers Section */}
         <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-8">Recommended Artists & Photographers</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-            {recommendedArtists.map((artist, index) => (
-              <Card key={index} className="overflow-hidden transition-all duration-300 hover:shadow-lg">
-                <CardHeader className="p-0">
-                  <div className="relative w-full h-40">
-                    <Image
-                      src={artist.image || "/placeholder.svg"}
-                      alt={artist.name}
-                      fill
-                      className="object-cover"
-                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-                    />
-                  </div>
-                </CardHeader>
-                <CardContent className="p-4">
-                  <CardTitle className="text-lg mb-1">{artist.name}</CardTitle>
-                  <CardDescription>{artist.type}</CardDescription>
-                </CardContent>
-                <CardFooter>
-                  <Button asChild variant="outline" className="w-full">
-                    <a
-                      href={artist.facebook}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-center"
-                    >
-                      <Facebook className="w-4 h-4 mr-2" />
-                      Visit Facebook
-                    </a>
-                  </Button>
-                </CardFooter>
-              </Card>
-            ))}
-          </div>
+          <h2 className="text-3xl font-bold text-center mb-8">Recommended Services</h2>
+          {Object.entries(
+            recommendedArtists.reduce(
+              (acc, artist) => {
+                if (!acc[artist.category]) {
+                  acc[artist.category] = []
+                }
+                acc[artist.category].push(artist)
+                return acc
+              },
+              {} as Record<string, typeof recommendedArtists>,
+            ),
+          ).map(([category, artists]) => (
+            <div key={category} className="mb-8">
+              <h3 className="text-2xl font-semibold mb-4">{category}</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+                {artists.map((artist, index) => (
+                  <Card key={index} className="overflow-hidden transition-all duration-300 hover:shadow-lg">
+                    <CardHeader className="p-0">
+                      <div className="relative w-full h-40">
+                        <Image
+                          src={artist.image || "/placeholder.svg"}
+                          alt={artist.name}
+                          fill
+                          className="object-cover"
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                        />
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-4">
+                      <CardTitle className="text-lg mb-1">{artist.name}</CardTitle>
+                      <CardDescription>{artist.type}</CardDescription>
+                    </CardContent>
+                    <CardFooter>
+                      <Button asChild variant="outline" className="w-full">
+                        <a
+                          href={artist.facebook}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center justify-center"
+                        >
+                          <Facebook className="w-4 h-4 mr-2" />
+                          Visit Facebook
+                        </a>
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Why Choose E-Reserve? Section */}

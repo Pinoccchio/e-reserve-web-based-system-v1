@@ -6,7 +6,15 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { Calendar, MapPin, Users, CurrencyIcon as LucidePhilippinePeso, ArrowLeft, Navigation } from "lucide-react"
+import {
+  Calendar,
+  MapPin,
+  Users,
+  CurrencyIcon as LucidePhilippinePeso,
+  ArrowLeft,
+  Navigation,
+  Video,
+} from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { Loader } from "@googlemaps/js-api-loader"
 import { GoogleMapPicker } from "@/components/GoogleMapPicker"
@@ -25,6 +33,13 @@ interface Facility {
   type: string
   price_per_hour: number
   images: { id: number; image_url: string }[]
+  video_url: string
+}
+
+interface VenueStats {
+  purpose: string
+  booking_count: number
+  total_attendees: number
 }
 
 const VisuallyHidden = ({ children }: { children: React.ReactNode }) => <span className="sr-only">{children}</span>
@@ -32,30 +47,45 @@ const VisuallyHidden = ({ children }: { children: React.ReactNode }) => <span cl
 export default function ViewFacilityPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: facilityId } = React.use(params)
   const [facility, setFacility] = useState<Facility | null>(null)
+  const [venueStats, setVenueStats] = useState<VenueStats[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [isVideoModalOpen, setIsVideoModalOpen] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
-    const fetchFacility = async () => {
+    const fetchFacilityAndStats = async () => {
       setIsLoading(true)
-      const { data, error } = await supabase
-        .from("facilities")
-        .select(`*, images:facility_images(id, image_url)`)
-        .eq("id", facilityId)
-        .single()
+      const [facilityData, statsData] = await Promise.all([
+        supabase
+          .from("facilities")
+          .select(`*, images:facility_images(id, image_url), video_url`)
+          .eq("id", facilityId)
+          .single(),
+        supabase
+          .from("venue_booking_stats")
+          .select("purpose, booking_count, total_attendees")
+          .eq("facility_id", facilityId)
+          .order("booking_count", { ascending: false })
+          .limit(5),
+      ])
 
-      if (error) {
-        console.error("Error fetching facility:", error)
-        setIsLoading(false)
-        return
+      if (facilityData.error) {
+        console.error("Error fetching facility:", facilityData.error)
+      } else {
+        setFacility(facilityData.data)
       }
 
-      setFacility(data)
+      if (statsData.error) {
+        console.error("Error fetching venue stats:", statsData.error)
+      } else {
+        setVenueStats(statsData.data)
+      }
+
       setIsLoading(false)
     }
 
-    fetchFacility()
+    fetchFacilityAndStats()
   }, [facilityId])
 
   useEffect(() => {
@@ -110,6 +140,43 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
     return <div className="text-center py-12">Facility not found</div>
   }
 
+  const renderMarkerContent = () => {
+    return (
+      <div className="bg-white p-3 rounded shadow-md max-w-xs">
+        <h4 className="font-semibold mb-2 text-sm">{facility?.name}</h4>
+        <div className="text-xs mb-2">
+          <p>
+            <strong>Type:</strong> {facility?.type}
+          </p>
+          <p>
+            <strong>Capacity:</strong> {facility?.capacity} people
+          </p>
+          <p>
+            <strong>Price:</strong> {facility?.price_per_hour ? `₱${facility.price_per_hour}/hour` : "Free"}
+          </p>
+        </div>
+        {venueStats.length > 0 && (
+          <>
+            <h5 className="font-medium mb-1 text-xs border-t pt-1">Popular Uses:</h5>
+            <ul className="text-xs">
+              {venueStats.slice(0, 3).map((stat, index) => (
+                <li key={index} className="mb-1">
+                  {stat.purpose}: {stat.booking_count} bookings
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {facility?.video_url && (
+          <Button size="sm" className="mt-2 w-full" onClick={() => setIsVideoModalOpen(true)}>
+            <Video className="w-4 h-4 mr-2" />
+            Watch Video
+          </Button>
+        )}
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6 lg:px-8">
       <Button variant="outline" className="mb-6" onClick={() => router.push("/end-user/dashboard/facilities")}>
@@ -139,7 +206,7 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
               </div>
               <div className="flex items-center">
                 <LucidePhilippinePeso className="mr-2 h-5 w-5" />
-                <span>Price: ₱{facility.price_per_hour}/hour</span>
+                <span>Price: {facility.price_per_hour > 0 ? `₱${facility.price_per_hour}/hour` : "Free"}</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -151,13 +218,34 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
           <Separator />
 
           <div className="space-y-4">
+            <h3 className="text-xl font-semibold">Venue Booking Statistics</h3>
+            {venueStats.length > 0 ? (
+              <ul className="space-y-2">
+                {venueStats.map((stat, index) => (
+                  <li key={index} className="flex justify-between items-center">
+                    <span>{stat.purpose}</span>
+                    <span>
+                      {stat.booking_count} bookings ({stat.total_attendees} total attendees)
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p>No booking statistics available for this venue yet.</p>
+            )}
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
             <h3 className="text-xl font-semibold">Location</h3>
-            <div className="rounded-md overflow-hidden border border-input h-[300px]">
-              <GoogleMapPicker
-                onLocationSelect={() => {}}
-                initialLocation={{ lat: facility.latitude, lng: facility.longitude }}
-                searchedLocation={{ lat: facility.latitude, lng: facility.longitude }}
-              />
+            <div className="rounded-md overflow-hidden border border-input h-[400px]">
+              {facility && (
+                <GoogleMapPicker
+                  initialLocation={{ lat: facility.latitude, lng: facility.longitude }}
+                  markerContent={renderMarkerContent()}
+                />
+              )}
             </div>
             {userLocation && (
               <Button onClick={handleNavigate} className="mt-2">
@@ -200,9 +288,11 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
                   </DialogContent>
                 </Dialog>
               ))}
-              <div className="aspect-video">
-                <VideoPlayer url="https://youtu.be/RYlgN-lLBLQ" />
-              </div>
+              {facility.video_url && (
+                <div className="aspect-video">
+                  <VideoPlayer url={facility.video_url} />
+                </div>
+              )}
             </div>
           </div>
         </CardContent>
@@ -214,6 +304,17 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
           </Button>
         </CardFooter>
       </Card>
+
+      <Dialog open={isVideoModalOpen} onOpenChange={setIsVideoModalOpen}>
+        <DialogContent className="max-w-4xl w-full p-0">
+          <VisuallyHidden>
+            <DialogTitle>{`Video of ${facility?.name}`}</DialogTitle>
+          </VisuallyHidden>
+          <div className="aspect-video w-full">
+            <VideoPlayer url={facility?.video_url || ""} />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

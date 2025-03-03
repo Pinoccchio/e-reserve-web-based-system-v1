@@ -7,7 +7,7 @@ export default function EndUserDashboard() {
   const router = useRouter()
 
   useEffect(() => {
-    router.push("/end-user/dashboard/facilities")
+    router.replace("/end-user/dashboard/facilities")
   }, [router])
 
   return null

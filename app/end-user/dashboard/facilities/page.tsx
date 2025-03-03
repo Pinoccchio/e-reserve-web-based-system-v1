@@ -22,7 +22,7 @@ interface Facility {
   type: string
   price_per_hour: number
   images: { image_url: string }[]
-  video_url?: string
+  video_url: string
 }
 
 export default function FacilitiesPage() {
@@ -45,12 +45,7 @@ export default function FacilitiesPage() {
     if (error) {
       console.error("Error fetching facilities:", error)
     } else {
-      // Add the video URL to each facility
-      const facilitiesWithVideo = data.map((facility) => ({
-        ...facility,
-        video_url: "https://youtu.be/RYlgN-lLBLQ", // Add the video URL to each facility
-      }))
-      setFacilities(facilitiesWithVideo as Facility[])
+      setFacilities(data as Facility[])
     }
   }
 
@@ -131,6 +126,7 @@ export default function FacilitiesPage() {
                   variant="outline"
                   className="flex items-center justify-center w-full sm:w-1/2"
                   onClick={() => setVirtualTourFacility(facility)}
+                  disabled={!facility.video_url}
                 >
                   <Eye className="mr-2 h-4 w-4" /> Virtual Tour
                 </Button>

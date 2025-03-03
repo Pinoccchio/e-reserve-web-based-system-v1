@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { format, addDays, isSameDay, parseISO } from "date-fns"
+import { format, addDays, isSameDay, parseISO, setHours, isAfter, isBefore } from "date-fns"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { supabase } from "@/lib/supabase"
@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { ChevronLeft, ChevronRight, Printer } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { jsPDF } from "jspdf"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface Facility {
   id: number
@@ -42,6 +43,28 @@ interface PageProps {
   }>
 }
 
+interface ReceiptData {
+  id: number
+  booking_id: number | null
+  facility_name: string
+  booker_name: string
+  booker_email: string
+  booker_phone: string
+  start_time: string
+  end_time: string
+  purpose: string
+  number_of_attendees: number | null
+  special_requests: string | null
+  status: string
+  price_per_hour: number
+}
+
+interface VenueStats {
+  purpose: string
+  booking_count: number
+  total_attendees: number
+}
+
 const SPECIAL_VENUES = ["SK Building", "Cultural Center", "Sports Complex"]
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const MONTHS = [
@@ -67,21 +90,16 @@ const STATUS_COLORS = {
   completed: "bg-blue-100 text-blue-800 border-blue-200",
 }
 
-interface ReceiptData {
-  id: number
-  booking_id: number | null
-  facility_name: string
-  booker_name: string
-  booker_email: string
-  booker_phone: string
-  start_time: string
-  end_time: string
-  purpose: string
-  number_of_attendees: number | null
-  special_requests: string | null
-  status: string
-  price_per_hour: number
-}
+const RESERVATION_PURPOSES = [
+  "Birthday",
+  "Wedding",
+  "Oath taking",
+  "Seminar",
+  "Training",
+  "Pageant",
+  "Conference",
+  "Meeting",
+]
 
 export default function BookingPage({ params }: PageProps) {
   const { id: facilityId } = React.use(params)
@@ -101,6 +119,7 @@ export default function BookingPage({ params }: PageProps) {
   const [showBookingForm, setShowBookingForm] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null)
+  const [venueStats, setVenueStats] = useState<VenueStats[]>([])
 
   const getReservationsForDate = (date: Date) => {
     return allReservations.filter((reservation) => {
@@ -169,8 +188,8 @@ export default function BookingPage({ params }: PageProps) {
         <div
           key={day}
           className={`p-2 border border-gray-200 min-h-[100px] ${
-            isSelected ? "bg-blue-50" : hasConflict ? "bg-red-50" : isPastDate ? "bg-gray-100" : ""
-          } ${hasConflict || isPastDate ? "cursor-not-allowed opacity-75" : "cursor-pointer hover:bg-gray-50"}`}
+            isSelected ? "bg-gray-800 text-white" : hasConflict ? "bg-red-50" : isPastDate ? "bg-gray-100" : ""
+          } ${hasConflict || isPastDate ? "cursor-not-allowed opacity-75" : "cursor-pointer hover:bg-gray-100"}`}
           onClick={() => {
             if (!hasConflict && !isPastDate) {
               handleDateSelect(date)
@@ -179,7 +198,7 @@ export default function BookingPage({ params }: PageProps) {
             }
           }}
         >
-          <div className="font-semibold mb-1">
+          <div className={`font-semibold mb-1 ${isSelected ? "text-white" : ""}`}>
             {day}
             {isPastDate && <span className="ml-1 text-xs text-gray-500">(Past)</span>}
           </div>
@@ -188,7 +207,9 @@ export default function BookingPage({ params }: PageProps) {
               <Badge
                 key={index}
                 variant="secondary"
-                className={`w-full justify-start text-xs ${STATUS_COLORS[reservation.status]}`}
+                className={`w-full justify-start text-xs ${
+                  isSelected ? "bg-gray-700 text-white" : STATUS_COLORS[reservation.status]
+                }`}
               >
                 {reservation.facility.name}
                 <span className="ml-1 text-[10px]">
@@ -199,7 +220,9 @@ export default function BookingPage({ params }: PageProps) {
             {hasConflict && (
               <Badge
                 variant="secondary"
-                className="w-full justify-start text-xs bg-red-100 text-red-800 border-red-200"
+                className={`w-full justify-start text-xs ${
+                  isSelected ? "bg-gray-700 text-white" : "bg-red-100 text-red-800 border-red-200"
+                }`}
               >
                 Not Available
               </Badge>
@@ -219,13 +242,34 @@ export default function BookingPage({ params }: PageProps) {
       return
     }
 
-    setIsLoading(true)
-
     const startDateTime = new Date(selectedDate)
     startDateTime.setHours(Number(startTime.split(":")[0]), Number(startTime.split(":")[1]))
 
     const endDateTime = new Date(selectedDate)
     endDateTime.setHours(Number(endTime.split(":")[0]), Number(endTime.split(":")[1]))
+
+    // Check if end time is after start time
+    if (!isAfter(endDateTime, startDateTime)) {
+      showToast("End time must be after start time", "error")
+      return
+    }
+
+    // Check if booking is within allowed hours (e.g., 7 AM to 10 PM)
+    const openingTime = setHours(selectedDate, 7)
+    const closingTime = setHours(selectedDate, 22)
+    if (isBefore(startDateTime, openingTime) || isAfter(endDateTime, closingTime)) {
+      showToast("Bookings are only allowed between 7 AM and 10 PM", "error")
+      return
+    }
+
+    // Check if booking duration is at least 1 hour
+    const durationInMinutes = (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60)
+    if (durationInMinutes < 60) {
+      showToast("Booking duration must be at least 1 hour", "error")
+      return
+    }
+
+    setIsLoading(true)
 
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser()
@@ -393,7 +437,7 @@ export default function BookingPage({ params }: PageProps) {
         message: `New booking request for ${facilityName}`,
         action_type: "new_booking",
         related_id: receiptId,
-        is_read: "no", // Add this line
+        is_read: "no",
       })
     })
 
@@ -611,6 +655,17 @@ export default function BookingPage({ params }: PageProps) {
         if (facilityError) throw facilityError
         if (facilityData) setFacility(facilityData)
 
+        // Fetch venue booking stats
+        const { data: statsData, error: statsError } = await supabase
+          .from("venue_booking_stats")
+          .select("purpose, booking_count, total_attendees")
+          .eq("facility_id", facilityId)
+          .order("booking_count", { ascending: false })
+          .limit(5)
+
+        if (statsError) throw statsError
+        setVenueStats(statsData)
+
         const [reservationsData, paymentApprovalData] = await Promise.all([
           supabase
             .from("reservations")
@@ -680,6 +735,26 @@ export default function BookingPage({ params }: PageProps) {
     fetchFacilityAndReservations()
   }, [facilityId])
 
+  const renderVenueStats = () => {
+    if (venueStats.length === 0) return null
+
+    return (
+      <div className="mt-6">
+        <h3 className="text-lg font-semibold mb-2">Venue Booking Statistics</h3>
+        <ul className="space-y-2">
+          {venueStats.map((stat, index) => (
+            <li key={index} className="flex justify-between items-center">
+              <span>{stat.purpose}</span>
+              <span>
+                {stat.booking_count} bookings ({stat.total_attendees} total attendees)
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    )
+  }
+
   if (!facility) {
     return <div>Loading...</div>
   }
@@ -688,10 +763,11 @@ export default function BookingPage({ params }: PageProps) {
     <div className="container mx-auto py-8">
       <Card>
         <CardHeader>
-          <CardTitle>Book {facility.name}</CardTitle>
-          <CardDescription>{facility.description}</CardDescription>
+          <CardTitle>Book {facility?.name}</CardTitle>
+          <CardDescription>{facility?.description}</CardDescription>
         </CardHeader>
         <CardContent>
+          {renderVenueStats()}
           <div className="mb-6">
             <Label>Select a Date</Label>
             <div className="bg-white p-4 rounded-lg shadow-md mb-6">
@@ -728,7 +804,7 @@ export default function BookingPage({ params }: PageProps) {
                   <Badge variant="secondary" className="bg-red-50 text-red-800 border-red-200">
                     Reserved/Not Available
                   </Badge>
-                  <Badge variant="secondary" className="bg-blue-50 text-blue-800 border-blue-200">
+                  <Badge variant="secondary" className="bg-gray-800 text-white">
                     Selected Date
                   </Badge>
                   <Badge variant="secondary" className="bg-gray-100 text-gray-800 border-gray-200">
@@ -744,22 +820,26 @@ export default function BookingPage({ params }: PageProps) {
           {showBookingForm && (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="start-time">Start Time</Label>
+                <Label htmlFor="start-time">Start Time (7 AM - 10 PM)</Label>
                 <Input
                   id="start-time"
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
+                  min="07:00"
+                  max="22:00"
                   required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="end-time">End Time</Label>
+                <Label htmlFor="end-time">End Time (7 AM - 10 PM)</Label>
                 <Input
                   id="end-time"
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
+                  min="07:00"
+                  max="22:00"
                   required
                 />
               </div>
@@ -788,12 +868,18 @@ export default function BookingPage({ params }: PageProps) {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="purpose">Purpose of Reservation</Label>
-                <Input
-                  id="purpose"
-                  value={purpose}
-                  onChange={(e) => setPurpose(e.target.value)}
-                  placeholder="e.g., Wedding, Conference, Birthday Party"
-                />
+                <Select value={purpose} onValueChange={setPurpose} required>
+                  <SelectTrigger id="purpose">
+                    <SelectValue placeholder="Select purpose" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RESERVATION_PURPOSES.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="number-of-attendees">Number of Attendees</Label>

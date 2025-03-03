@@ -18,12 +18,11 @@ export function ChatBot() {
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Initial greeting message
   useEffect(() => {
     setMessages([
       {
         role: "assistant",
-        content: "Hello! How can I help you today with our venue reservation system?",
+        content: "Hello! How can I help you today with our venue reservation system in Libmanan, Camarines Sur?",
       },
     ])
   }, [])
@@ -32,7 +31,7 @@ export function ChatBot() {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" })
     }
-  }, [messages])
+  }, [])
 
   const handleSendMessage = async () => {
     if (input.trim() === "" || isLoading) return
@@ -43,6 +42,9 @@ export function ChatBot() {
     setIsLoading(true)
     setError(null)
 
+    // Add a temporary "typing" message
+    setMessages((prevMessages) => [...prevMessages, { role: "assistant", content: "Typing..." }])
+
     try {
       const response = await fetch("/api/chat", {
         method: "POST",
@@ -50,7 +52,7 @@ export function ChatBot() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          messages: [...messages, userMessage],
+          text: input,
         }),
       })
 
@@ -60,15 +62,20 @@ export function ChatBot() {
         throw new Error(data.error || "Failed to get response")
       }
 
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: data.output,
-      }
-
-      setMessages((prevMessages) => [...prevMessages, assistantMessage])
+      // Remove the temporary "typing" message and add the real response
+      setMessages((prevMessages) => [
+        ...prevMessages.slice(0, -1),
+        {
+          role: "assistant",
+          content: data.output || "I'm sorry, I couldn't process that request.",
+        },
+      ])
     } catch (error) {
       console.error("Error getting chatbot response:", error)
       setError(error instanceof Error ? error.message : "Failed to get response. Please try again.")
+
+      // Remove the temporary "typing" message if there's an error
+      setMessages((prevMessages) => prevMessages.slice(0, -1))
     } finally {
       setIsLoading(false)
     }
@@ -76,13 +83,13 @@ export function ChatBot() {
 
   return (
     <>
-      <div className="h-[300px] overflow-y-auto pr-4">
+      <div className="h-[400px] overflow-y-auto pr-4 mb-4">
         {messages.map((message, index) => (
           <div key={index} className={`mb-4 ${message.role === "user" ? "text-right" : "text-left"}`}>
             <span
               className={`inline-block rounded-lg px-3 py-2 ${
                 message.role === "user" ? "bg-blue-500 text-white" : "bg-gray-200 text-gray-800"
-              }`}
+              } ${message.content === "Typing..." ? "animate-pulse" : ""}`}
             >
               {message.content}
             </span>
@@ -109,8 +116,9 @@ export function ChatBot() {
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}
         />
-        <Button type="submit" size="icon" disabled={isLoading}>
-          <Send className="h-4 w-4" />
+        <Button type="submit" disabled={isLoading}>
+          <Send className="h-4 w-4 mr-2" />
+          Send
         </Button>
       </form>
     </>
