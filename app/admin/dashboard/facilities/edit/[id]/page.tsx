@@ -21,10 +21,10 @@ import Image from "next/image"
 
 declare global {
   interface Window {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    google: any
+    google: typeof google
   }
 }
+
 
 const bagumbayanCenter = {
   lat: 13.3553,
