@@ -1,7 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, Suspense } from "react"
+import dynamic from "next/dynamic"
 import { Search, Eye, Calendar, MapPin, Users, Building, CurrencyIcon as LucidePhilippinePeso } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,9 +12,21 @@ import { VirtualTourModal } from "@/components/VirtualTourModal"
 import Image from "next/image"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
-import { FacilitiesMap } from "@/components/FacilitiesMap"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { VideoPlayer } from "@/components/VideoPlayer"
+
+// Define the props type for FacilitiesMap
+interface FacilitiesMapProps {
+  facilities: Facility[]
+  onVideoClick: (videoUrl: string) => void
+  selectedFacility: Facility | null
+}
+
+// Use the defined props type in the dynamic import
+const FacilitiesMap = dynamic<FacilitiesMapProps>(() => import("@/components/FacilitiesMap"), {
+  ssr: false,
+  loading: () => <p>Loading map...</p>,
+})
 
 interface PopularUse {
   purpose: string
@@ -79,6 +92,7 @@ export default function FacilitiesPage() {
     }))
 
     setFacilities(facilitiesWithPopularUses)
+    setFilteredFacilities(facilitiesWithPopularUses) // Set all facilities initially
   }
 
   const handleSearch = useCallback(() => {
@@ -153,11 +167,13 @@ export default function FacilitiesPage() {
           <CardTitle>Facilities Map</CardTitle>
         </CardHeader>
         <CardContent>
-          <FacilitiesMap
-            facilities={filteredFacilities}
-            onVideoClick={handleVideoClick}
-            selectedFacility={selectedFacility}
-          />
+          <Suspense fallback={<div>Loading map...</div>}>
+            <FacilitiesMap
+              facilities={filteredFacilities}
+              onVideoClick={handleVideoClick}
+              selectedFacility={selectedFacility}
+            />
+          </Suspense>
         </CardContent>
       </Card>
 

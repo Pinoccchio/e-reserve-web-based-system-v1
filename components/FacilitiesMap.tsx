@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unused-vars */
-
 "use client"
 
 import { useState, useCallback, useEffect, useRef } from "react"
 import { GoogleMap, Marker, InfoWindow, useJsApiLoader } from "@react-google-maps/api"
 import { Button } from "@/components/ui/button"
 import { Video } from "lucide-react"
+import type React from "react"
 
 interface PopularUse {
   purpose: string
@@ -51,18 +51,17 @@ const mapOptions: google.maps.MapOptions = {
 
 declare global {
   interface Window {
-    google: any
+    google: typeof google
   }
 }
 
-export function FacilitiesMap({ facilities, onVideoClick, selectedFacility }: FacilitiesMapProps) {
+const FacilitiesMap: React.FC<FacilitiesMapProps> = ({ facilities, onVideoClick, selectedFacility }) => {
   const { isLoaded } = useJsApiLoader({
     id: "google-map-script",
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
     libraries: ["places"],
   })
 
-  const [map, setMap] = useState<google.maps.Map | null>(null)
   const [activeMarker, setActiveMarker] = useState<number | null>(null)
   const mapRef = useRef<google.maps.Map | null>(null)
 
@@ -74,19 +73,17 @@ export function FacilitiesMap({ facilities, onVideoClick, selectedFacility }: Fa
       })
       map.fitBounds(bounds)
 
-   
+     
 
       map.setMapTypeId("satellite")
 
       mapRef.current = map
-      setMap(map)
     },
     [facilities],
   )
 
   const onUnmount = useCallback(() => {
     mapRef.current = null
-    setMap(null)
   }, [])
 
   const handleMarkerClick = (facilityId: number) => {
@@ -106,7 +103,7 @@ export function FacilitiesMap({ facilities, onVideoClick, selectedFacility }: Fa
       })
       mapRef.current.fitBounds(bounds)
 
-      
+     
     }
   }, [selectedFacility, facilities])
 
@@ -164,4 +161,6 @@ export function FacilitiesMap({ facilities, onVideoClick, selectedFacility }: Fa
     </div>
   )
 }
+
+export default FacilitiesMap
 

@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -17,12 +16,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter }
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
 
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
 declare global {
   interface Window {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    google: any
+    google: typeof google
   }
 }
 
@@ -64,30 +60,32 @@ export default function AddFacilityPage() {
     loader.load().then(() => {
       if (window.google && window.google.maps && window.google.maps.places) {
         const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
-        const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
-          fields: ["formatted_address", "geometry"],
-        })
+        if (autocompleteInput) {
+          const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
+            fields: ["formatted_address", "geometry"],
+          })
 
-        autocompleteInstance.addListener("place_changed", () => {
-          const place = autocompleteInstance.getPlace()
-          if (place.geometry?.location) {
-            const newLocation = {
-              address: place.formatted_address || "",
-              lat: place.geometry.location.lat(),
-              lng: place.geometry.location.lng(),
+          autocompleteInstance.addListener("place_changed", () => {
+            const place = autocompleteInstance.getPlace()
+            if (place.geometry && place.geometry.location) {
+              const newLocation = {
+                address: place.formatted_address || "",
+                lat: place.geometry.location.lat(),
+                lng: place.geometry.location.lng(),
+              }
+              setLocation(newLocation)
+              setSearchQuery(newLocation.address)
+              setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
             }
-            setLocation(newLocation)
-            setSearchQuery(newLocation.address)
-            setSearchedLocation({ lat: newLocation.lat, lng: newLocation.lng })
-          }
-        })
+          })
+        }
       } else {
         console.error("Google Maps Places API not loaded correctly.")
       }
     })
   }, [])
 
-  const handleLocationSelect = (selectedLocation: { address: string; lat: number; lng: number } | null) => {
+  const handleLocationSelect = (selectedLocation: Location | null) => {
     if (selectedLocation) {
       setLocation(selectedLocation)
       setSearchQuery(selectedLocation.address)
