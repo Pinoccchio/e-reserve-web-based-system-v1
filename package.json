@@ -44,6 +44,7 @@
     "react-dom": "^18.3.1",
     "react-draggable": "^4.4.6",
     "react-player": "^2.16.0",
+    "recharts": "^2.15.1",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "three": "^0.172.0",

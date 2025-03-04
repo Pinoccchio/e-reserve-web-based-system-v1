@@ -2,15 +2,14 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
-import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { format } from "date-fns"
-import { Calendar, MapPin, Building, Users, AlertCircle, Search } from "lucide-react"
+import { format, differenceInHours } from "date-fns"
+import { Calendar, Building, Users, AlertCircle, DollarSign } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { showToast } from "@/components/ui/toast"
 
@@ -18,6 +17,7 @@ interface Facility {
   id: number
   name: string
   location: string
+  price_per_hour: number
 }
 
 interface PaymentApproval {
@@ -35,6 +35,7 @@ interface PaymentApproval {
   created_at: string
   user_id: string
   facility: Facility
+  total_price: number
 }
 
 export default function PaymentCollectorApprovalsPage() {
@@ -54,13 +55,18 @@ export default function PaymentCollectorApprovalsPage() {
         .from("payment_collector_approval")
         .select(`
           *,
-          facility:facilities(id, name, location)
+          facility:facilities(id, name, location, price_per_hour)
         `)
         .order("created_at", { ascending: false })
 
       if (error) throw error
 
-      setApprovals(data as PaymentApproval[])
+      const approvalsWithTotalPrice = data.map((approval: PaymentApproval) => ({
+        ...approval,
+        total_price: approval.total_price || calculateTotalPrice(approval),
+      }))
+
+      setApprovals(approvalsWithTotalPrice)
       setIsLoading(false)
     } catch (error) {
       console.error("Error fetching approvals:", error)
@@ -70,26 +76,26 @@ export default function PaymentCollectorApprovalsPage() {
     }
   }
 
+  function calculateTotalPrice(approval: PaymentApproval): number {
+    const hours = differenceInHours(new Date(approval.end_time), new Date(approval.start_time))
+    return hours * approval.facility.price_per_hour
+  }
+
   const handleStatusChange = async (approvalId: number, newStatus: "approved" | "declined") => {
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser()
       if (userError) throw userError
 
-      // Fetch the approval data first
-      const { data: approvalData, error: approvalFetchError } = await supabase
-        .from("payment_collector_approval")
-        .select(`*, facility:facilities(name)`)
-        .eq("id", approvalId)
-        .single()
+      const approval = approvals.find((a) => a.id === approvalId)
+      if (!approval) throw new Error("Approval not found")
 
-      if (approvalFetchError) throw approvalFetchError
-
-      if (!approvalData) throw new Error("Approval data not found")
+      const totalPrice = approval.total_price || calculateTotalPrice(approval)
 
       const updateData = {
         status: newStatus,
         action_by: userData.user?.id,
         action_at: new Date().toISOString(),
+        total_price: totalPrice,
       }
 
       // Update the payment_collector_approval table
@@ -103,19 +109,20 @@ export default function PaymentCollectorApprovalsPage() {
       // If approved, insert into reservations table with status "pending"
       if (newStatus === "approved") {
         const { error: reservationError } = await supabase.from("reservations").insert({
-          user_id: approvalData.user_id,
-          facility_id: approvalData.facility_id,
-          booker_name: approvalData.booker_name,
-          booker_email: approvalData.booker_email,
-          booker_phone: approvalData.booker_phone,
-          start_time: approvalData.start_time,
-          end_time: approvalData.end_time,
+          user_id: approval.user_id,
+          facility_id: approval.facility_id,
+          booker_name: approval.booker_name,
+          booker_email: approval.booker_email,
+          booker_phone: approval.booker_phone,
+          start_time: approval.start_time,
+          end_time: approval.end_time,
           status: "pending", // Set to pending for admin review
-          purpose: approvalData.purpose,
-          number_of_attendees: approvalData.number_of_attendees,
-          special_requests: approvalData.special_requests,
+          purpose: approval.purpose,
+          number_of_attendees: approval.number_of_attendees,
+          special_requests: approval.special_requests,
           created_by: userData.user.id,
           last_updated_by: userData.user.id,
+          total_price: totalPrice,
         })
 
         if (reservationError) throw reservationError
@@ -132,7 +139,7 @@ export default function PaymentCollectorApprovalsPage() {
 
         const adminNotificationData = {
           user_id: adminData.id,
-          message: `Payment collector ${userData.user.email} has approved a booking for ${approvalData.facility.name} by ${approvalData.booker_name}. It requires your review.`,
+          message: `Payment collector ${userData.user.email} has approved a booking for ${approval.facility.name} by ${approval.booker_name}. It requires your review.`,
           action_type: "payment_collector_approved",
           related_id: approvalId,
         }
@@ -144,18 +151,19 @@ export default function PaymentCollectorApprovalsPage() {
 
       // Add transaction history
       const transactionData = {
-        user_id: approvalData.user_id,
-        facility_id: approvalData.facility_id,
+        user_id: approval.user_id,
+        facility_id: approval.facility_id,
         action: `booking_${newStatus}`,
         action_by: userData.user.id,
         action_by_role: "payment_collector",
-        target_user_id: approvalData.user_id,
+        target_user_id: approval.user_id,
         status: newStatus,
         details: JSON.stringify({
           approval_id: approvalId,
-          facility_name: approvalData.facility.name,
-          start_time: approvalData.start_time,
-          end_time: approvalData.end_time,
+          facility_name: approval.facility.name,
+          start_time: approval.start_time,
+          end_time: approval.end_time,
+          total_price: totalPrice,
         }),
       }
 
@@ -165,11 +173,11 @@ export default function PaymentCollectorApprovalsPage() {
 
       // Create notification for the end-user
       const endUserNotificationData = {
-        user_id: approvalData.user_id,
+        user_id: approval.user_id,
         message:
           newStatus === "approved"
-            ? `Your booking for ${approvalData.facility.name} has been approved by the payment collector and is pending final admin approval.`
-            : `Your booking for ${approvalData.facility.name} has been declined.`,
+            ? `Your booking for ${approval.facility.name} has been approved by the payment collector and is pending final admin approval. Total price: ₱${totalPrice.toFixed(2)}`
+            : `Your booking for ${approval.facility.name} has been declined.`,
         action_type: `booking_${newStatus}`,
         related_id: approvalId,
       }
@@ -181,7 +189,7 @@ export default function PaymentCollectorApprovalsPage() {
       // Create notification for the payment collector
       const paymentCollectorNotificationData = {
         user_id: userData.user.id,
-        message: `You have ${newStatus} the booking for ${approvalData.facility.name} by ${approvalData.booker_name}.`,
+        message: `You have ${newStatus} the booking for ${approval.facility.name} by ${approval.booker_name}. Total price: ₱${totalPrice.toFixed(2)}`,
         action_type: `booking_${newStatus}`,
         related_id: approvalId,
       }
@@ -192,11 +200,9 @@ export default function PaymentCollectorApprovalsPage() {
 
       if (paymentCollectorNotificationError) throw paymentCollectorNotificationError
 
-      setApprovals(
-        approvals.map((approval) => (approval.id === approvalId ? { ...approval, ...updateData } : approval)),
-      )
+      setApprovals(approvals.map((a) => (a.id === approvalId ? { ...a, ...updateData } : a)))
 
-      showToast(`Booking has been ${newStatus}.`, "success")
+      showToast(`Booking has been ${newStatus}. Total price: ₱${totalPrice.toFixed(2)}`, "success")
     } catch (error) {
       console.error("Error updating approval status:", error)
       showToast("There was an error updating the approval status.", "error")
@@ -204,224 +210,191 @@ export default function PaymentCollectorApprovalsPage() {
   }
 
   const filteredApprovals = useMemo(() => {
-    return approvals
-      .filter((approval) => statusFilter === "all" || approval.status === statusFilter)
-      .filter((approval) =>
-        searchQuery
-          ? approval.booker_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            approval.facility.name.toLowerCase().includes(searchQuery.toLowerCase())
-          : true,
-      )
+    return approvals.filter((approval) => {
+      const statusMatch = statusFilter === "all" || approval.status === statusFilter
+      const searchMatch =
+        searchQuery === "" ||
+        approval.booker_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        approval.booker_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        approval.facility.name.toLowerCase().includes(searchQuery.toLowerCase())
+      return statusMatch && searchMatch
+    })
   }, [approvals, statusFilter, searchQuery])
 
   const getStatusColor = (status: string) => {
     switch (status) {
       case "pending":
-        return "bg-yellow-200 text-yellow-800"
+        return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-300"
       case "approved":
-        return "bg-green-200 text-green-800"
+        return "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
       case "declined":
-        return "bg-red-200 text-red-800"
+        return "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300"
       case "cancelled":
-        return "bg-gray-200 text-gray-800"
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
       case "completed":
-        return "bg-blue-200 text-blue-800"
+        return "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300"
       default:
-        return "bg-gray-200 text-gray-800"
+        return "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300"
     }
-  }
-
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600 text-lg">Loading approvals...</p>
-        </div>
-      </div>
-    )
   }
 
   return (
     <div className="space-y-6 p-6 max-w-full">
-      <h1 className="text-3xl font-bold">Payment Collector Approvals</h1>
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
-          <strong className="font-bold">Error: </strong>
-          <span className="block sm:inline">{error}</span>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">Payment Collector Approvals</h1>
+      </div>
+      <div className="flex items-center space-x-4">
+        <Input
+          type="text"
+          placeholder="Search by name, email, or facility..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="max-w-md"
+        />
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="declined">Declined</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+            <SelectItem value="completed">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {isLoading ? (
+        <p>Loading approvals...</p>
+      ) : error ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/5 p-4 text-sm text-destructive">
+          <AlertCircle className="h-4 w-4 mr-2 inline-block" />
+          {error}
         </div>
+      ) : approvals.length === 0 ? (
+        <p>No approvals found.</p>
+      ) : (
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-[200px]">Booker Name</TableHead>
+              <TableHead className="w-[200px]">Facility</TableHead>
+              <TableHead className="w-[200px]">Start Time</TableHead>
+              <TableHead className="w-[200px]">End Time</TableHead>
+              <TableHead className="w-[120px]">Total Price</TableHead>
+              <TableHead className="w-[120px]">Status</TableHead>
+              <TableHead className="text-right w-[120px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {filteredApprovals.map((approval) => (
+              <TableRow key={approval.id}>
+                <TableCell className="font-medium">{approval.booker_name}</TableCell>
+                <TableCell>{approval.facility.name}</TableCell>
+                <TableCell>{format(new Date(approval.start_time), "MMM d, yyyy h:mm a")}</TableCell>
+                <TableCell>{format(new Date(approval.end_time), "MMM d, yyyy h:mm a")}</TableCell>
+                <TableCell>₱{approval.total_price.toFixed(2)}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className={getStatusColor(approval.status)}>
+                    {approval.status}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right">
+                  <Dialog>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        View Details
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-4xl w-[90vw]">
+                      <DialogHeader>
+                        <DialogTitle>Approval Details</DialogTitle>
+                      </DialogHeader>
+                      <ScrollArea className="max-h-[80vh]">
+                        <div className="space-y-6 p-6">
+                          <div className="space-y-2">
+                            <h3 className="font-semibold mb-2 flex items-center">
+                              <Users className="mr-2 h-5 w-5" />
+                              Booker Information
+                            </h3>
+                            <p>
+                              <strong>Name:</strong> {approval.booker_name}
+                            </p>
+                            <p>
+                              <strong>Email:</strong> {approval.booker_email}
+                            </p>
+                            <p>
+                              <strong>Phone:</strong> {approval.booker_phone}
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="font-semibold mb-2 flex items-center">
+                              <Building className="mr-2 h-5 w-5" />
+                              Facility Information
+                            </h3>
+                            <p>
+                              <strong>Facility:</strong> {approval.facility.name}
+                            </p>
+                            <p>
+                              <strong>Location:</strong> {approval.facility.location}
+                            </p>
+                          </div>
+                          <div className="space-y-2">
+                            <h3 className="font-semibold mb-2 flex items-center">
+                              <Calendar className="mr-2 h-5 w-5" />
+                              Booking Information
+                            </h3>
+                            <p>
+                              <strong>Start Time:</strong> {format(new Date(approval.start_time), "MMM d, yyyy h:mm a")}
+                            </p>
+                            <p>
+                              <strong>End Time:</strong> {format(new Date(approval.end_time), "MMM d, yyyy h:mm a")}
+                            </p>
+                            <p>
+                              <strong>Purpose:</strong> {approval.purpose || "N/A"}
+                            </p>
+                            <p>
+                              <strong>Number of Attendees:</strong> {approval.number_of_attendees || "N/A"}
+                            </p>
+                            <p>
+                              <strong>Special Requests:</strong> {approval.special_requests || "N/A"}
+                            </p>
+                          </div>
+                          <div>
+                            <h3 className="font-semibold mb-2 flex items-center">
+                              <DollarSign className="mr-2 h-5 w-5" />
+                              Pricing Information
+                            </h3>
+                            <div className="space-y-2">
+                              <p>
+                                <strong>Price per Hour:</strong> ₱{approval.facility.price_per_hour.toFixed(2)}
+                              </p>
+                              <p>
+                                <strong>Total Price:</strong> ₱{approval.total_price.toFixed(2)}
+                              </p>
+                            </div>
+                          </div>
+                          {approval.status === "pending" && (
+                            <div className="flex justify-end space-x-2 mt-4">
+                              <Button onClick={() => handleStatusChange(approval.id, "approved")} variant="default">
+                                Approve
+                              </Button>
+                              <Button onClick={() => handleStatusChange(approval.id, "declined")} variant="destructive">
+                                Decline
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </DialogContent>
+                  </Dialog>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       )}
-      <Card className="w-full">
-        <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0 sm:space-x-4">
-            <div className="w-full sm:w-auto">
-              <Select onValueChange={(value) => setStatusFilter(value)}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="approved">Approved</SelectItem>
-                  <SelectItem value="declined">Declined</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="w-full sm:w-auto relative flex-grow sm:max-w-md">
-              <Input
-                type="text"
-                placeholder="Search by name or facility"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 w-full"
-              />
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            </div>
-          </div>
-          {filteredApprovals.length > 0 ? (
-            <div className="overflow-x-auto -mx-6">
-              <div className="inline-block min-w-full align-middle">
-                <div className="overflow-hidden border border-gray-200 sm:rounded-lg">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[200px]">Booker Name</TableHead>
-                        <TableHead className="w-[200px]">Facility</TableHead>
-                        <TableHead className="w-[200px]">Start Time</TableHead>
-                        <TableHead className="w-[200px]">End Time</TableHead>
-                        <TableHead className="w-[120px]">Status</TableHead>
-                        <TableHead className="text-right w-[120px]">Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredApprovals.map((approval) => (
-                        <TableRow key={approval.id}>
-                          <TableCell className="font-medium">{approval.booker_name}</TableCell>
-                          <TableCell>{approval.facility.name}</TableCell>
-                          <TableCell>{format(new Date(approval.start_time), "MMM d, yyyy h:mm a")}</TableCell>
-                          <TableCell>{format(new Date(approval.end_time), "MMM d, yyyy h:mm a")}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline" className={getStatusColor(approval.status)}>
-                              {approval.status}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="outline" size="sm">
-                                  View Details
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-4xl w-[90vw]">
-                                <DialogHeader>
-                                  <DialogTitle>Approval Details</DialogTitle>
-                                </DialogHeader>
-                                <ScrollArea className="max-h-[80vh]">
-                                  <div className="space-y-6 p-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                      <div className="space-y-4">
-                                        <div>
-                                          <h3 className="font-semibold mb-2">Booker Information</h3>
-                                          <div className="space-y-2">
-                                            <p>
-                                              <strong>Name:</strong> {approval.booker_name}
-                                            </p>
-                                            <p>
-                                              <strong>Email:</strong> {approval.booker_email}
-                                            </p>
-                                            <p>
-                                              <strong>Phone:</strong> {approval.booker_phone}
-                                            </p>
-                                          </div>
-                                        </div>
-                                        <div>
-                                          <h3 className="font-semibold mb-2 flex items-center">
-                                            <Building className="mr-2 h-5 w-5" />
-                                            Facility Information
-                                          </h3>
-                                          <div className="space-y-2">
-                                            <p>
-                                              <strong>Name:</strong> {approval.facility.name}
-                                            </p>
-                                            <p className="flex items-center">
-                                              <MapPin className="mr-2 h-4 w-4 text-gray-500" />
-                                              {approval.facility.location}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                      <div className="space-y-4">
-                                        <div>
-                                          <h3 className="font-semibold mb-2 flex items-center">
-                                            <Calendar className="mr-2 h-5 w-5" />
-                                            Reservation Details
-                                          </h3>
-                                          <div className="space-y-2">
-                                            <p>
-                                              <strong>Start:</strong>{" "}
-                                              {format(new Date(approval.start_time), "MMMM d, yyyy h:mm a")}
-                                            </p>
-                                            <p>
-                                              <strong>End:</strong>{" "}
-                                              {format(new Date(approval.end_time), "MMMM d, yyyy h:mm a")}
-                                            </p>
-                                            <p>
-                                              <strong>Purpose:</strong> {approval.purpose || "N/A"}
-                                            </p>
-                                            <p className="flex items-center">
-                                              <Users className="mr-2 h-4 w-4 text-gray-500" />
-                                              <strong>Attendees:</strong> {approval.number_of_attendees || "N/A"}
-                                            </p>
-                                            <p>
-                                              <strong>Special Requests:</strong> {approval.special_requests || "N/A"}
-                                            </p>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    </div>
-                                    {approval.status === "pending" && (
-                                      <div className="flex justify-end space-x-2 mt-4">
-                                        <Button
-                                          onClick={() => handleStatusChange(approval.id, "approved")}
-                                          variant="default"
-                                        >
-                                          Approve
-                                        </Button>
-                                        <Button
-                                          onClick={() => handleStatusChange(approval.id, "declined")}
-                                          variant="destructive"
-                                        >
-                                          Decline
-                                        </Button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </ScrollArea>
-                              </DialogContent>
-                            </Dialog>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <AlertCircle className="mx-auto h-12 w-12 text-gray-400" />
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">No approvals found</h3>
-              <p className="mt-2 text-sm text-gray-500">
-                {statusFilter === "all"
-                  ? "There are no reservations requiring approval at this time."
-                  : `There are no ${statusFilter} reservations.`}
-              </p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   )
 }

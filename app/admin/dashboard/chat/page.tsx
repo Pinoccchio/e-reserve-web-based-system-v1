@@ -84,7 +84,7 @@ export default function AdminChatPage() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [])
+  }, [messages])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -236,34 +236,36 @@ export default function AdminChatPage() {
           <CardHeader>
             <CardTitle>End Users</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             {users.length === 0 ? (
-              <p>No users available</p>
+              <p className="p-4">No users available</p>
             ) : (
-              <ul className="space-y-2">
-                {users.map((user) => (
-                  <li
-                    key={user.id}
-                    className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer ${
-                      selectedUser?.id === user.id ? "bg-gray-100" : "hover:bg-gray-50"
-                    }`}
-                    onClick={() => setSelectedUser(user)}
-                  >
-                    <Avatar>
-                      <AvatarFallback>{getInitials(`${user.first_name} ${user.last_name}`)}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-grow">
-                      <p className="font-semibold">{`${user.first_name} ${user.last_name}`}</p>
-                      <p className="text-sm text-gray-500">{user.email}</p>
-                    </div>
-                    {user.unread_count && user.unread_count > 0 && (
-                      <Badge variant="destructive" className="animate-pulse">
-                        {user.unread_count} new
-                      </Badge>
-                    )}
-                  </li>
-                ))}
-              </ul>
+              <div className="h-[500px] overflow-y-auto"> {/* Fixed height with scrolling */}
+                <ul className="space-y-2 p-2">
+                  {users.map((user) => (
+                    <li
+                      key={user.id}
+                      className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer ${
+                        selectedUser?.id === user.id ? "bg-gray-100" : "hover:bg-gray-50"
+                      }`}
+                      onClick={() => setSelectedUser(user)}
+                    >
+                      <Avatar>
+                        <AvatarFallback>{getInitials(`${user.first_name} ${user.last_name}`)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-grow">
+                        <p className="font-semibold">{`${user.first_name} ${user.last_name}`}</p>
+                        <p className="text-sm text-gray-500">{user.email}</p>
+                      </div>
+                      {user.unread_count && user.unread_count > 0 && (
+                        <Badge variant="destructive" className="animate-pulse">
+                          {user.unread_count} new
+                        </Badge>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -278,7 +280,7 @@ export default function AdminChatPage() {
           <CardContent>
             {selectedUser ? (
               <>
-                <div className="h-[400px] overflow-y-auto mb-4 space-y-4 p-4">
+                <div className="h-[400px] overflow-y-auto mb-4 space-y-4 p-4"> {/* Fixed height with scrolling */}
                   {messages.map((message) => (
                     <div
                       key={message.id}
@@ -352,4 +354,3 @@ export default function AdminChatPage() {
     </div>
   )
 }
-

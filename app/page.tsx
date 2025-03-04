@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { CalendarIcon, MapPin, Clock, Users, Facebook } from "lucide-react"
+import { CalendarIcon, MapPin, Clock, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase"
@@ -10,6 +10,7 @@ import { AuthDialogs } from "@/app/components/AuthDialog"
 import { VenueExploreDialog } from "@/components/VenueExploreDialog"
 import { ReservationCalendar } from "@/components/ReservationCalendar"
 import { VideoPlayer } from "@/components/VideoPlayer"
+import { RecommendedServices } from "@/components/RecommendedServices"
 
 async function getFeaturedVenues() {
   const { data: venues, error } = await supabase
@@ -54,7 +55,15 @@ async function checkUserSession() {
   return null
 }
 
-const recommendedArtists = [
+interface Artist {
+  name: string
+  type: string
+  image: string
+  facebook: string
+  category: string
+}
+
+const recommendedArtists: Artist[] = [
   {
     name: "Salceda Digital Studio",
     type: "Photographer",
@@ -90,6 +99,27 @@ const recommendedArtists = [
     facebook: "https://www.facebook.com/Applejoybalmes",
     category: "Catering Services",
   },
+  {
+    name: "High-Gravity Audio Tech",
+    type: "Sound System",
+    image: "/images/sound-system/high-gravity.jpg",
+    facebook: "https://www.facebook.com/share/1ADHkz5N31/",
+    category: "Sound Systems",
+  },
+  {
+    name: "Piday Rasonable Opancia",
+    type: "Sound System",
+    image: "/images/sound-system/piday.jpg",
+    facebook: "https://www.facebook.com/fopancia",
+    category: "Sound Systems",
+  },
+  {
+    name: "RJPM lights & sounds",
+    type: "Sound System",
+    image: "/images/sound-system/rjpm.jpg",
+    facebook: "https://www.facebook.com/share/12AK4aESe8g/",
+    category: "Sound Systems",
+  },
 ]
 
 export default async function Home() {
@@ -104,7 +134,6 @@ export default async function Home() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-100 to-white">
       <section className="py-20 px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto">
-        {/* Hero Section */}
         <div className="text-center mb-16">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-gray-900 mb-4">
             Find Your Perfect Venue
@@ -124,7 +153,6 @@ export default async function Home() {
           </div>
         </div>
 
-        {/* Promotional Video Section */}
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-center mb-8">Promotional Video</h2>
           <div className="max-w-[1200px] mx-auto px-4">
@@ -132,72 +160,16 @@ export default async function Home() {
           </div>
         </div>
 
-        {/* Featured Venues */}
         <Suspense fallback={<div>Loading featured venues...</div>}>
           <FeaturedVenues />
         </Suspense>
 
-        {/* Reservation Calendar */}
         <Suspense fallback={<div>Loading reservation calendar...</div>}>
           <ReservationCalendar />
         </Suspense>
 
-        {/* Recommended Artists & Photographers Section */}
-        <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-8">Recommended Services</h2>
-          {Object.entries(
-            recommendedArtists.reduce(
-              (acc, artist) => {
-                if (!acc[artist.category]) {
-                  acc[artist.category] = []
-                }
-                acc[artist.category].push(artist)
-                return acc
-              },
-              {} as Record<string, typeof recommendedArtists>,
-            ),
-          ).map(([category, artists]) => (
-            <div key={category} className="mb-8">
-              <h3 className="text-2xl font-semibold mb-4">{category}</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-                {artists.map((artist, index) => (
-                  <Card key={index} className="overflow-hidden transition-all duration-300 hover:shadow-lg">
-                    <CardHeader className="p-0">
-                      <div className="relative w-full h-40">
-                        <Image
-                          src={artist.image || "/placeholder.svg"}
-                          alt={artist.name}
-                          fill
-                          className="object-cover"
-                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
-                        />
-                      </div>
-                    </CardHeader>
-                    <CardContent className="p-4">
-                      <CardTitle className="text-lg mb-1">{artist.name}</CardTitle>
-                      <CardDescription>{artist.type}</CardDescription>
-                    </CardContent>
-                    <CardFooter>
-                      <Button asChild variant="outline" className="w-full">
-                        <a
-                          href={artist.facebook}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center justify-center"
-                        >
-                          <Facebook className="w-4 h-4 mr-2" />
-                          Visit Facebook
-                        </a>
-                      </Button>
-                    </CardFooter>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        <RecommendedServices artists={recommendedArtists} />
 
-        {/* Why Choose E-Reserve? Section */}
         <div className="bg-white rounded-lg shadow-xl p-8 md:p-12 mt-16">
           <h2 className="text-3xl font-bold text-center mb-8">Why Choose E-Reserve?</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

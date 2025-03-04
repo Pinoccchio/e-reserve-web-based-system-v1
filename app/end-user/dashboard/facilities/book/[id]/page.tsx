@@ -4,7 +4,7 @@ import React, { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { format, addDays, isSameDay, parseISO, setHours, isAfter, isBefore } from "date-fns"
+import { format, addDays, isSameDay, parseISO, setHours, isAfter, isBefore, differenceInHours } from "date-fns"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Textarea } from "@/components/ui/textarea"
 import { supabase } from "@/lib/supabase"
@@ -14,6 +14,8 @@ import { ChevronLeft, ChevronRight, Printer } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { jsPDF } from "jspdf"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+// Remove this import
+// import { BookingAnalytics } from "@/components/BookingAnalytics"
 
 interface Facility {
   id: number
@@ -237,7 +239,16 @@ export default function BookingPage({ params }: PageProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!selectedDate || !startTime || !endTime || !bookerName || !bookerEmail || !bookerPhone || !facility) {
+    if (
+      !selectedDate ||
+      !startTime ||
+      !endTime ||
+      !bookerName ||
+      !bookerEmail ||
+      !bookerPhone ||
+      !facility ||
+      !purpose
+    ) {
       showToast("Please fill in all required fields", "error")
       return
     }
@@ -273,14 +284,11 @@ export default function BookingPage({ params }: PageProps) {
 
     try {
       const { data: userData, error: userError } = await supabase.auth.getUser()
-      if (userError) {
-        console.error("User authentication error:", userError)
-        throw new Error("Failed to authenticate user")
-      }
+      if (userError) throw new Error("Failed to authenticate user")
+      if (!userData.user) throw new Error("No authenticated user found")
 
-      if (!userData.user) {
-        throw new Error("No authenticated user found")
-      }
+      const usageHours = differenceInHours(endDateTime, startDateTime)
+      const totalPrice = facility.price_per_hour * usageHours
 
       const isSpecialVenue = SPECIAL_VENUES.includes(facility.name)
       const isMOConferenceRoom = facility.name === "MO Conference Room"
@@ -298,6 +306,10 @@ export default function BookingPage({ params }: PageProps) {
         number_of_attendees: numberOfAttendees ? Number.parseInt(numberOfAttendees) : null,
         special_requests: specialRequests,
         is_read: "no",
+        // New fields
+        event_type: purpose,
+        attendees_count: Number.parseInt(numberOfAttendees) || 0,
+        total_price: totalPrice,
         // Add new fields for non-special venues
         ...(!isSpecialVenue &&
           !isMOConferenceRoom && {
@@ -324,6 +336,15 @@ export default function BookingPage({ params }: PageProps) {
 
       const newBooking = data[0]
       console.log("New booking created:", newBooking)
+
+      // Add facility usage data
+      await supabase.from("facility_usage").insert({
+        facility_id: facility.id,
+        reservation_id: newBooking.id,
+        usage_date: startDateTime.toISOString().split("T")[0],
+        usage_hours: usageHours,
+        revenue: totalPrice,
+      })
 
       const receiptData = {
         booking_id: isSpecialVenue ? null : newBooking.id,
@@ -867,10 +888,10 @@ export default function BookingPage({ params }: PageProps) {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="purpose">Purpose of Reservation</Label>
+                <Label htmlFor="event-type">Event Type</Label>
                 <Select value={purpose} onValueChange={setPurpose} required>
-                  <SelectTrigger id="purpose">
-                    <SelectValue placeholder="Select purpose" />
+                  <SelectTrigger id="event-type">
+                    <SelectValue placeholder="Select event type" />
                   </SelectTrigger>
                   <SelectContent>
                     {RESERVATION_PURPOSES.map((p) => (
@@ -916,6 +937,14 @@ export default function BookingPage({ params }: PageProps) {
         </CardContent>
       </Card>
       {renderReceipt()}
+
+      {/* Remove or comment out the BookingAnalytics section for now */}
+      {/*
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold mb-4">Booking Analytics</h2>
+        <BookingAnalytics />
+      </div>
+      */}
     </div>
   )
 }

@@ -111,7 +111,7 @@ export function ReservationCalendar() {
     const cells = []
     const today = new Date()
     for (let i = 0; i < firstDayOfMonth; i++) {
-      cells.push(<div key={`empty-${i}`} className="p-2"></div>)
+      cells.push(<div key={`empty-${i}`} className="p-2 h-24"></div>)
     }
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day)
@@ -119,24 +119,30 @@ export function ReservationCalendar() {
         (reservation) =>
           new Date(reservation.start_time).getDate() === date.getDate() &&
           new Date(reservation.start_time).getMonth() === date.getMonth() &&
-          new Date(reservation.start_time).getFullYear() === date.getFullYear(),
+          new Date(reservation.start_time).getFullYear() === date.getFullYear() &&
+          (reservation.status === "approved" || reservation.status === "pending"),
       )
       const isToday =
         date.getDate() === today.getDate() &&
         date.getMonth() === today.getMonth() &&
         date.getFullYear() === today.getFullYear()
       cells.push(
-        <div key={day} className={`p-2 border border-gray-200 ${isToday ? "bg-yellow-100 font-bold" : ""}`}>
+        <div
+          key={day}
+          className={`p-2 border border-gray-200 h-24 overflow-y-auto ${isToday ? "bg-yellow-100 font-bold" : ""}`}
+        >
           <span className={`${isToday ? "text-blue-600" : ""}`}>{day}</span>
-          {dayReservations.map((reservation, index) => (
-            <div
-              key={index}
-              className={`text-xs mt-1 p-1 rounded ${getStatusColor(reservation.status)} cursor-pointer`}
-              onClick={() => setSelectedReservation(reservation)}
-            >
-              {reservation.facility.name}
-            </div>
-          ))}
+          <div className="mt-1 space-y-1">
+            {dayReservations.map((reservation, index) => (
+              <div
+                key={index}
+                className={`text-xs p-1 rounded ${getStatusColor(reservation.status)} cursor-pointer`}
+                onClick={() => setSelectedReservation(reservation)}
+              >
+                {reservation.facility.name}
+              </div>
+            ))}
+          </div>
         </div>,
       )
     }
@@ -156,11 +162,11 @@ export function ReservationCalendar() {
 
   return (
     <>
-      <Card className="mb-16">
+      <Card className="mb-16 h-[600px] flex flex-col">
         <CardHeader>
           <CardTitle className="text-2xl">Reservation Calendar</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-grow overflow-y-auto">
           <div className="w-full">
             <div className="bg-white p-4 rounded-lg shadow-md mb-6">
               <div className="flex justify-between items-center mb-4">
@@ -174,7 +180,7 @@ export function ReservationCalendar() {
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-1 auto-rows-fr">
                 {DAYS.map((day) => (
                   <div key={day} className="font-semibold text-center p-2">
                     {day}
