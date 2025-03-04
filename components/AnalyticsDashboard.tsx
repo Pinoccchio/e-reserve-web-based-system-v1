@@ -90,6 +90,7 @@ export function AnalyticsDashboard() {
     return <div className="text-red-500">Error: {error}</div>
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const renderChart = (title: string, data: any[] | undefined, ChartComponent: any, chartProps: any) => {
     if (!data || data.length === 0) {
       return (
