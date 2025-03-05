@@ -22,8 +22,8 @@ interface FacilitiesMapProps {
   selectedFacility: Facility | null
 }
 
-// Use the defined props type in the dynamic import
-const FacilitiesMap = dynamic<FacilitiesMapProps>(() => import("@/components/FacilitiesMap"), {
+// Update the dynamic import
+const FacilitiesMap = dynamic(() => import("@/components/FacilitiesMap").then((mod) => mod.default), {
   ssr: false,
   loading: () => <p>Loading map...</p>,
 })
@@ -31,6 +31,7 @@ const FacilitiesMap = dynamic<FacilitiesMapProps>(() => import("@/components/Fac
 interface PopularUse {
   purpose: string
   booking_count: number
+  percentage?: number // Make percentage optional
 }
 
 interface Facility {
@@ -65,9 +66,9 @@ export default function FacilitiesPage() {
 
   async function fetchFacilities() {
     const { data: facilitiesData, error: facilitiesError } = await supabase.from("facilities").select(`
-        *,
-        images:facility_images(image_url)
-      `)
+    *,
+    images:facility_images(image_url)
+  `)
 
     if (facilitiesError) {
       console.error("Error fetching facilities:", facilitiesError)
@@ -84,15 +85,31 @@ export default function FacilitiesPage() {
       return
     }
 
-    const facilitiesWithPopularUses = facilitiesData.map((facility: Facility) => ({
-      ...facility,
-      popular_uses: popularUsesData
+    // Calculate total bookings for each facility
+    const facilityTotalBookings = popularUsesData.reduce((acc: Record<number, number>, use: any) => {
+      acc[use.facility_id] = (acc[use.facility_id] || 0) + use.booking_count
+      return acc
+    }, {})
+
+    const facilitiesWithPopularUses = facilitiesData.map((facility: Facility) => {
+      const facilityPopularUses = popularUsesData
         .filter((use: any) => use.facility_id === facility.id)
-        .map(({ purpose, booking_count }: PopularUse) => ({ purpose, booking_count })),
-    }))
+        .map((use: { purpose: string; booking_count: number }) => ({
+          purpose: use.purpose,
+          booking_count: use.booking_count,
+          percentage: (use.booking_count / facilityTotalBookings[facility.id]) * 100,
+        }))
+        .sort((a: PopularUse, b: PopularUse) => b.booking_count - a.booking_count)
+        .slice(0, 3) // Get top 3 popular uses
+
+      return {
+        ...facility,
+        popular_uses: facilityPopularUses,
+      }
+    })
 
     setFacilities(facilitiesWithPopularUses)
-    setFilteredFacilities(facilitiesWithPopularUses) // Set all facilities initially
+    setFilteredFacilities(facilitiesWithPopularUses)
   }
 
   const handleSearch = useCallback(() => {
@@ -208,7 +225,7 @@ export default function FacilitiesPage() {
                 </p>
                 <p className="text-sm text-gray-600 flex items-center">
                   <LucidePhilippinePeso className="w-4 h-4 mr-2" />
-                  Price: {facility.price_per_hour === 0 ? "Free" : `₱${facility.price_per_hour}/hour`}
+                  Price: {facility.price_per_hour === 0 ? "Free" : `₱${facility.price_per_hour}`}
                 </p>
               </div>
               <p className="text-sm text-gray-700 mt-4 line-clamp-3">{facility.description}</p>

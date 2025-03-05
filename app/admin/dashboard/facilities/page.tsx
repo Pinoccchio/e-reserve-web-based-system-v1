@@ -107,7 +107,9 @@ export default function FacilitiesPage() {
               <div className="space-y-1">
                 <p className="text-sm text-gray-600">Capacity: {facility.capacity}</p>
                 <p className="text-sm text-gray-600">Type: {facility.type}</p>
-                <p className="text-sm text-gray-600">Price: ₱{facility.price_per_hour}/hour</p>
+                <p className="text-sm text-gray-600">
+                  Price: {facility.price_per_hour === 0 ? "Free" : `₱${facility.price_per_hour * 24}/day`}
+                </p>
               </div>
               <p className="text-sm text-gray-700 mt-4 line-clamp-3">{facility.description}</p>
             </CardContent>

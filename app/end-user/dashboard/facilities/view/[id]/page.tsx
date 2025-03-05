@@ -40,6 +40,7 @@ interface VenueStats {
   purpose: string
   booking_count: number
   total_attendees: number
+  percentage: number
 }
 
 const VisuallyHidden = ({ children }: { children: React.ReactNode }) => <span className="sr-only">{children}</span>
@@ -64,7 +65,7 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
           .single(),
         supabase
           .from("venue_booking_stats")
-          .select("purpose, booking_count, total_attendees")
+          .select("purpose, booking_count, total_attendees, percentage")
           .eq("facility_id", facilityId)
           .order("booking_count", { ascending: false })
           .limit(5),
@@ -161,7 +162,7 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
             <ul className="text-xs">
               {venueStats.slice(0, 3).map((stat, index) => (
                 <li key={index} className="mb-1">
-                  {stat.purpose}: {stat.booking_count} bookings
+                  {stat.purpose}: {stat.booking_count} bookings ({stat.percentage.toFixed(2)}%)
                 </li>
               ))}
             </ul>
@@ -225,7 +226,8 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
                   <li key={index} className="flex justify-between items-center">
                     <span>{stat.purpose}</span>
                     <span>
-                      {stat.booking_count} bookings ({stat.total_attendees} total attendees)
+                      {stat.booking_count} bookings ({stat.total_attendees} total attendees,{" "}
+                      {stat.percentage.toFixed(2)}%)
                     </span>
                   </li>
                 ))}

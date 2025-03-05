@@ -11,6 +11,7 @@ import type React from "react"
 interface PopularUse {
   purpose: string
   booking_count: number
+  percentage?: number // Make percentage optional
 }
 
 interface Facility {
@@ -72,11 +73,7 @@ const FacilitiesMap: React.FC<FacilitiesMapProps> = ({ facilities, onVideoClick,
         bounds.extend({ lat: facility.latitude, lng: facility.longitude })
       })
       map.fitBounds(bounds)
-
-     
-
       map.setMapTypeId("satellite")
-
       mapRef.current = map
     },
     [facilities],
@@ -102,61 +99,100 @@ const FacilitiesMap: React.FC<FacilitiesMapProps> = ({ facilities, onVideoClick,
         bounds.extend({ lat: facility.latitude, lng: facility.longitude })
       })
       mapRef.current.fitBounds(bounds)
-
-     
     }
   }, [selectedFacility, facilities])
+
+  const getMarkerIcon = (facility: Facility) => {
+    const isPopular = facility.popular_uses.length > 0 && facility.popular_uses[0].booking_count > 0
+    if (isPopular) {
+      return "http://maps.google.com/mapfiles/ms/icons/yellow-dot.png"
+    }
+    switch (facility.type.toLowerCase()) {
+      case "indoor":
+        return "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+      case "outdoor":
+        return "http://maps.google.com/mapfiles/ms/icons/green-dot.png"
+      default:
+        return "http://maps.google.com/mapfiles/ms/icons/red-dot.png"
+    }
+  }
+
+  const groupedFacilities = facilities.reduce(
+    (acc, facility) => {
+      const key = `${facility.latitude},${facility.longitude}`
+      if (!acc[key]) {
+        acc[key] = []
+      }
+      acc[key].push(facility)
+      return acc
+    },
+    {} as Record<string, Facility[]>,
+  )
+
+  const getAdjustedPosition = (lat: number, lng: number, index: number) => {
+    const offsetFactor = 0.0001 // Adjust this value to increase or decrease the spread
+    const angle = (index / 8) * 2 * Math.PI // Distribute markers in a circle
+    const adjustedLat = lat + offsetFactor * Math.cos(angle)
+    const adjustedLng = lng + offsetFactor * Math.sin(angle)
+    return { lat: adjustedLat, lng: adjustedLng }
+  }
 
   if (!isLoaded) return <div>Loading map...</div>
 
   return (
     <div className="relative overflow-hidden rounded-lg">
       <GoogleMap mapContainerStyle={mapContainerStyle} options={mapOptions} onLoad={onLoad} onUnmount={onUnmount}>
-        {facilities.map((facility) => (
-          <Marker
-            key={facility.id}
-            position={{ lat: facility.latitude, lng: facility.longitude }}
-            onClick={() => handleMarkerClick(facility.id)}
-          >
-            {activeMarker === facility.id && (
-              <InfoWindow
-                position={{ lat: facility.latitude, lng: facility.longitude }}
-                onCloseClick={() => setActiveMarker(null)}
+        {Object.entries(groupedFacilities).map(([key, groupedFacilities]) => {
+          const [baseLat, baseLng] = key.split(",").map(Number)
+          return groupedFacilities.map((facility, index) => {
+            const position = getAdjustedPosition(baseLat, baseLng, index)
+            return (
+              <Marker
+                key={facility.id}
+                position={position}
+                icon={getMarkerIcon(facility)}
+                onClick={() => handleMarkerClick(facility.id)}
               >
-                <div className="p-2 max-w-xs">
-                  <h4 className="font-semibold mb-2">{facility.name}</h4>
-                  <p className="text-sm mb-1">
-                    <strong>Type:</strong> {facility.type}
-                  </p>
-                  <p className="text-sm mb-1">
-                    <strong>Capacity:</strong> {facility.capacity} people
-                  </p>
-                  <p className="text-sm mb-2">
-                    <strong>Price:</strong> {facility.price_per_hour > 0 ? `₱${facility.price_per_hour}/hour` : "Free"}
-                  </p>
-                  {facility.popular_uses && facility.popular_uses.length > 0 && (
-                    <div className="text-sm mb-2">
-                      <strong>Popular Uses:</strong>
-                      <ul className="list-disc list-inside">
-                        {facility.popular_uses.slice(0, 3).map((use, index) => (
-                          <li key={index}>
-                            {use.purpose}: {use.booking_count} booking{use.booking_count !== 1 ? "s" : ""}
-                          </li>
-                        ))}
-                      </ul>
+                {activeMarker === facility.id && (
+                  <InfoWindow position={position} onCloseClick={() => setActiveMarker(null)}>
+                    <div className="p-2 max-w-xs">
+                      <h4 className="font-semibold mb-2">{facility.name}</h4>
+                      <p className="text-sm mb-1">
+                        <strong>Type:</strong> {facility.type}
+                      </p>
+                      <p className="text-sm mb-1">
+                        <strong>Capacity:</strong> {facility.capacity} people
+                      </p>
+                      <p className="text-sm mb-2">
+                        <strong>Price:</strong>{" "}
+                        {facility.price_per_hour > 0 ? `₱${facility.price_per_hour}/hour` : "Free"}
+                      </p>
+                      {facility.popular_uses.length > 0 && (
+                        <div className="text-sm mb-2">
+                          <strong>Popular Uses:</strong>
+                          <ul className="list-disc list-inside">
+                            {facility.popular_uses.slice(0, 3).map((use, index) => (
+                              <li key={index}>
+                                {use.purpose}: {use.booking_count} booking{use.booking_count !== 1 ? "s" : ""} (
+                                {use.percentage?.toFixed(2) || 0}%)
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {facility.video_url && (
+                        <Button size="sm" className="w-full mt-2" onClick={() => onVideoClick(facility.video_url!)}>
+                          <Video className="w-4 h-4 mr-2" />
+                          Watch Video
+                        </Button>
+                      )}
                     </div>
-                  )}
-                  {facility.video_url && (
-                    <Button size="sm" className="w-full" onClick={() => onVideoClick(facility.video_url!)}>
-                      <Video className="w-4 h-4 mr-2" />
-                      Watch Video
-                    </Button>
-                  )}
-                </div>
-              </InfoWindow>
-            )}
-          </Marker>
-        ))}
+                  </InfoWindow>
+                )}
+              </Marker>
+            )
+          })
+        })}
       </GoogleMap>
     </div>
   )
