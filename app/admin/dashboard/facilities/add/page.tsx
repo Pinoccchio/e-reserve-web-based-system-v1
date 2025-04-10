@@ -284,7 +284,7 @@ export default function AddFacilityPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="type">Type</Label>
+                  <Label htmlFor="type">Facility Type</Label>
                   <Select value={type} onValueChange={setType} required>
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />

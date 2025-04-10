@@ -147,7 +147,7 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
         <h4 className="font-semibold mb-2 text-sm">{facility?.name}</h4>
         <div className="text-xs mb-2">
           <p>
-            <strong>Type:</strong> {facility?.type}
+            <strong>Facility Type:</strong> {facility?.type}
           </p>
           <p>
             <strong>Capacity:</strong> {facility?.capacity} people
@@ -203,7 +203,7 @@ export default function ViewFacilityPage({ params }: { params: Promise<{ id: str
               </div>
               <div className="flex items-center">
                 <Calendar className="mr-2 h-5 w-5" />
-                <span>Type: {facility.type}</span>
+                <span>Facility Type: {facility.type}</span>
               </div>
               <div className="flex items-center">
                 <LucidePhilippinePeso className="mr-2 h-5 w-5" />

@@ -18,8 +18,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import Image from "next/image"
 import { VideoPlayer } from "@/components/VideoPlayer"
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-
 declare global {
   interface Window {
     google: typeof google
@@ -340,7 +338,7 @@ export default function EditFacilityPage({ params }: PageProps) {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="type">Type</Label>
+                  <Label htmlFor="type">Facility Type</Label>
                   <Select value={type} onValueChange={setType} required>
                     <SelectTrigger>
                       <SelectValue placeholder="Select type" />

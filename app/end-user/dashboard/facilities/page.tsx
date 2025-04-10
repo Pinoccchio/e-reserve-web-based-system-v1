@@ -222,11 +222,11 @@ export default function FacilitiesPage() {
                 </p>
                 <p className="text-sm text-gray-600 flex items-center">
                   <Building className="w-4 h-4 mr-2" />
-                  Type: {facility.type}
+                  Facility Type: {facility.type}
                 </p>
                 <p className="text-sm text-gray-600 flex items-center">
                   <LucidePhilippinePeso className="w-4 h-4 mr-2" />
-                  Price: {facility.price_per_hour === 0 ? "Free" : `₱${facility.price_per_hour}`}
+                  Price: {facility.price_per_hour === 0 ? "Free" : `₱${facility.price_per_hour}/day`}
                 </p>
               </div>
               <p className="text-sm text-gray-700 mt-4 line-clamp-3">{facility.description}</p>
@@ -292,4 +292,3 @@ export default function FacilitiesPage() {
     </div>
   )
 }
-
