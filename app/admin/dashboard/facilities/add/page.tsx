@@ -296,7 +296,7 @@ export default function AddFacilityPage() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="pricePerHour">Price per Hour</Label>
+                  <Label htmlFor="pricePerHour">Price</Label>
                   <Input
                     id="pricePerHour"
                     type="number"

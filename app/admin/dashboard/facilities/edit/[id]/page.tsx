@@ -113,6 +113,11 @@ export default function EditFacilityPage({ params }: PageProps) {
     })
 
     loader.load().then(() => {
+      if (typeof window.google === "undefined") {
+        console.error("Google Maps API not loaded")
+        return
+      }
+
       const autocompleteInput = document.getElementById("location-search") as HTMLInputElement
       const autocompleteInstance = new window.google.maps.places.Autocomplete(autocompleteInput, {
         fields: ["formatted_address", "geometry"],
@@ -347,7 +352,7 @@ export default function EditFacilityPage({ params }: PageProps) {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="pricePerHour">Price per Hour</Label>
+                  <Label htmlFor="pricePerHour">Price</Label>
                   <Input
                     id="pricePerHour"
                     type="number"
