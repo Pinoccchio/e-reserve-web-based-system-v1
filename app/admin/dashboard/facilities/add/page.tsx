@@ -9,12 +9,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@supabase/supabase-js"
 import { v4 as uuidv4 } from "uuid"
-import { X, Upload, ImageIcon, MapPin, Loader2 } from "lucide-react"
+import { X, Upload, ImageIcon, MapPin, Loader2, Video } from "lucide-react"
 import { Loader } from "@googlemaps/js-api-loader"
 import { GoogleMapPicker } from "@/components/GoogleMapPicker"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
+import { VideoPlayer } from "@/components/VideoPlayer"
 
 declare global {
   interface Window {
@@ -44,6 +45,8 @@ export default function AddFacilityPage() {
   const [capacity, setCapacity] = useState("")
   const [type, setType] = useState("")
   const [pricePerHour, setPricePerHour] = useState("")
+  const [videoUrl, setVideoUrl] = useState("")
+  const [isVideoValid, setIsVideoValid] = useState(true)
   const [imageSets, setImageSets] = useState<File[][]>([])
   const [currentImages, setCurrentImages] = useState<File[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -84,6 +87,19 @@ export default function AddFacilityPage() {
       }
     })
   }, [])
+
+  const validateYouTubeUrl = (url: string) => {
+    if (!url) return true // Empty URL is valid (optional field)
+
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/
+    return youtubeRegex.test(url)
+  }
+
+  const handleVideoUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value
+    setVideoUrl(url)
+    setIsVideoValid(validateYouTubeUrl(url))
+  }
 
   const handleLocationSelect = (selectedLocation: Location | null) => {
     if (selectedLocation) {
@@ -163,6 +179,7 @@ export default function AddFacilityPage() {
             capacity: Number.parseInt(capacity),
             type,
             price_per_hour: Number.parseFloat(pricePerHour),
+            video_url: videoUrl,
           },
         ])
         .select()
@@ -176,13 +193,15 @@ export default function AddFacilityPage() {
       const facilityId = facilityData[0].id
 
       // Insert image data
-      const imageInserts = allImageUrls.map((url) => ({
-        facility_id: facilityId,
-        image_url: url,
-      }))
+      if (allImageUrls.length > 0) {
+        const imageInserts = allImageUrls.map((url) => ({
+          facility_id: facilityId,
+          image_url: url,
+        }))
 
-      const { error: imageError } = await supabase.from("facility_images").insert(imageInserts)
-      if (imageError) throw imageError
+        const { error: imageError } = await supabase.from("facility_images").insert(imageInserts)
+        if (imageError) throw imageError
+      }
 
       console.log("Facility Added: The new facility has been successfully added.")
 
@@ -290,6 +309,28 @@ export default function AddFacilityPage() {
 
               <Separator />
 
+              <div className="space-y-2">
+                <Label htmlFor="videoUrl">YouTube Video URL</Label>
+                <div className="flex items-center space-x-2">
+                  <Video className="w-5 h-5 text-gray-400" />
+                  <Input
+                    id="videoUrl"
+                    value={videoUrl}
+                    onChange={handleVideoUrlChange}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className={`flex-grow ${!isVideoValid ? "border-red-500" : ""}`}
+                  />
+                </div>
+                {!isVideoValid && <p className="text-sm text-red-500 mt-1">Please enter a valid YouTube URL</p>}
+                {videoUrl && isVideoValid && (
+                  <div className="mt-4 rounded-md overflow-hidden border border-input">
+                    <VideoPlayer url={videoUrl} />
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
               <div className="space-y-4">
                 <Label>Images</Label>
                 <div className="flex items-center space-x-4">
@@ -359,7 +400,10 @@ export default function AddFacilityPage() {
             <Button type="button" variant="outline" onClick={() => router.push("/admin/dashboard/facilities")}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={isSubmitting || imageSets.length === 0 || !location}>
+            <Button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !location || !isVideoValid || imageSets.length === 0}
+            >
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -375,4 +419,3 @@ export default function AddFacilityPage() {
     </div>
   )
 }
-

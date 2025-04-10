@@ -9,13 +9,14 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@supabase/supabase-js"
 import { v4 as uuidv4 } from "uuid"
-import { X, Upload, ImageIcon, MapPin, Loader2 } from "lucide-react"
+import { X, Upload, ImageIcon, MapPin, Loader2, Video } from "lucide-react"
 import { Loader } from "@googlemaps/js-api-loader"
 import { GoogleMapPicker } from "@/components/GoogleMapPicker"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
 import { motion, AnimatePresence } from "framer-motion"
 import Image from "next/image"
+import { VideoPlayer } from "@/components/VideoPlayer"
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
@@ -24,7 +25,6 @@ declare global {
     google: typeof google
   }
 }
-
 
 const bagumbayanCenter = {
   lat: 13.3553,
@@ -50,6 +50,7 @@ interface Facility {
   type: string
   price_per_hour: number
   images: { id: number; image_url: string }[]
+  video_url: string
 }
 
 interface PageProps {
@@ -65,12 +66,14 @@ export default function EditFacilityPage({ params }: PageProps) {
   const [capacity, setCapacity] = useState("")
   const [type, setType] = useState("")
   const [pricePerHour, setPricePerHour] = useState("")
+  const [videoUrl, setVideoUrl] = useState("")
   const [imageSets, setImageSets] = useState<File[][]>([])
   const [currentImages, setCurrentImages] = useState<File[]>([])
   const [existingImages, setExistingImages] = useState<{ id: number; image_url: string }[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchQuery, setSearchQuery] = useState("")
   const [searchedLocation, setSearchedLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [isVideoValid, setIsVideoValid] = useState(true)
 
   const { id } = use(params)
 
@@ -78,7 +81,7 @@ export default function EditFacilityPage({ params }: PageProps) {
     const fetchFacility = async () => {
       const { data, error } = await supabase
         .from("facilities")
-        .select(`*, images:facility_images(id, image_url)`)
+        .select(`*, images:facility_images(id, image_url), video_url`)
         .eq("id", id)
         .single()
 
@@ -95,6 +98,7 @@ export default function EditFacilityPage({ params }: PageProps) {
       setCapacity(data.capacity.toString())
       setType(data.type)
       setPricePerHour(data.price_per_hour.toString())
+      setVideoUrl(data.video_url || "")
       setExistingImages(data.images)
     }
 
@@ -129,6 +133,19 @@ export default function EditFacilityPage({ params }: PageProps) {
       })
     })
   }, [])
+
+  const validateYouTubeUrl = (url: string) => {
+    if (!url) return true // Empty URL is valid (optional field)
+
+    const youtubeRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.?be)\/.+$/
+    return youtubeRegex.test(url)
+  }
+
+  const handleVideoUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value
+    setVideoUrl(url)
+    setIsVideoValid(validateYouTubeUrl(url))
+  }
 
   const handleLocationSelect = (selectedLocation: { address: string; lat: number; lng: number } | null) => {
     if (selectedLocation) {
@@ -214,6 +231,7 @@ export default function EditFacilityPage({ params }: PageProps) {
           capacity: Number.parseInt(capacity),
           type,
           price_per_hour: Number.parseFloat(pricePerHour),
+          video_url: videoUrl,
         })
         .eq("id", id)
 
@@ -342,6 +360,28 @@ export default function EditFacilityPage({ params }: PageProps) {
 
               <Separator />
 
+              <div className="space-y-2">
+                <Label htmlFor="videoUrl">YouTube Video URL</Label>
+                <div className="flex items-center space-x-2">
+                  <Video className="w-5 h-5 text-gray-400" />
+                  <Input
+                    id="videoUrl"
+                    value={videoUrl}
+                    onChange={handleVideoUrlChange}
+                    placeholder="https://www.youtube.com/watch?v=..."
+                    className={`flex-grow ${!isVideoValid ? "border-red-500" : ""}`}
+                  />
+                </div>
+                {!isVideoValid && <p className="text-sm text-red-500 mt-1">Please enter a valid YouTube URL</p>}
+                {videoUrl && isVideoValid && (
+                  <div className="mt-4 rounded-md overflow-hidden border border-input">
+                    <VideoPlayer url={videoUrl} />
+                  </div>
+                )}
+              </div>
+
+              <Separator />
+
               <div className="space-y-4">
                 <Label>Existing Images</Label>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -435,7 +475,7 @@ export default function EditFacilityPage({ params }: PageProps) {
             <Button type="button" variant="outline" onClick={() => router.push("/admin/dashboard/facilities")}>
               Cancel
             </Button>
-            <Button onClick={handleSubmit} disabled={isSubmitting}>
+            <Button onClick={handleSubmit} disabled={isSubmitting || !isVideoValid}>
               {isSubmitting ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -451,4 +491,3 @@ export default function EditFacilityPage({ params }: PageProps) {
     </div>
   )
 }
-
