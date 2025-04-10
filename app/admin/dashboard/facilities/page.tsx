@@ -108,7 +108,7 @@ export default function FacilitiesPage() {
                 <p className="text-sm text-gray-600">Capacity: {facility.capacity}</p>
                 <p className="text-sm text-gray-600">Type: {facility.type}</p>
                 <p className="text-sm text-gray-600">
-                  Price: {facility.price_per_hour === 0 ? "Free" : `₱${facility.price_per_hour * 24}/day`}
+                  Price: {facility.price_per_hour === 0 ? "Free" : `₱${facility.price_per_hour}/day`}
                 </p>
               </div>
               <p className="text-sm text-gray-700 mt-4 line-clamp-3">{facility.description}</p>
@@ -147,4 +147,3 @@ export default function FacilitiesPage() {
     </div>
   )
 }
-

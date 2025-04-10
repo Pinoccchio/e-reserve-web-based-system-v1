@@ -147,7 +147,7 @@ export default function ViewFacilityPageClient({ id }: { id: string }) {
             <strong>Capacity:</strong> {facility?.capacity} people
           </p>
           <p>
-            <strong>Price:</strong> {facility?.price_per_hour ? `₱${facility.price_per_hour}/hour` : "Free"}
+            <strong>Price:</strong> {facility?.price_per_hour ? `₱${facility.price_per_hour}/day` : "Free"}
           </p>
         </div>
         {venueStats.length > 0 && (
@@ -201,7 +201,7 @@ export default function ViewFacilityPageClient({ id }: { id: string }) {
               </div>
               <div className="flex items-center">
                 <LucidePhilippinePeso className="mr-2 h-5 w-5" />
-                <span>Price: {facility.price_per_hour > 0 ? `₱${facility.price_per_hour}/hour` : "Free"}</span>
+                <span>Price: {facility.price_per_hour > 0 ? `₱${facility.price_per_hour}/day` : "Free"}</span>
               </div>
             </div>
             <div className="space-y-2">
@@ -315,4 +315,3 @@ export default function ViewFacilityPageClient({ id }: { id: string }) {
     </div>
   )
 }
-
