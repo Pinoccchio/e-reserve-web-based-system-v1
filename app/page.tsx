@@ -1,7 +1,7 @@
 import { Suspense } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { CalendarIcon, MapPin, Clock, Users } from "lucide-react"
+import { CalendarIcon, MapPin, Clock, Users } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { supabase } from "@/lib/supabase"
@@ -72,6 +72,41 @@ const recommendedArtists: Artist[] = [
     category: "Photographers",
   },
   {
+    name: "Baby Duck's Photography Studio",
+    type: "Photographer",
+    image: "/images/photographers/baby_duck.jpg",
+    facebook: "https://www.facebook.com/profile.php?id=100090179524092",
+    category: "Photographers",
+  },
+  {
+    name: "Domniel Samaniego",
+    type: "Photographer",
+    image: "/images/photographers/domniel.jpg",
+    facebook: "https://www.facebook.com/domniel.samaniego",
+    category: "Photographers",
+  },
+  {
+    name: "Jam Lustre",
+    type: "Photographer",
+    image: "/images/photographers/jam.jpg",
+    facebook: "https://www.facebook.com/Lustre.NoliJam",
+    category: "Photographers",
+  },
+  {
+    name: "Pol-Art's",
+    type: "Photographer",
+    image: "/images/photographers/pol_arts.jpg",
+    facebook: "https://www.facebook.com/profile.php?id=100077553098992",
+    category: "Photographers",
+  },
+  {
+    name: "Jojo Photography",
+    type: "Photographer",
+    image: "/images/photographers/jojo_photography.jpg",
+    facebook: "https://www.facebook.com/jojoalipantephotovideo",
+    category: "Photographers",
+  },
+  {
     name: "Mark Lopez",
     type: "Makeup Artist",
     image: "/images/artists/mark-lopez.jpg",
@@ -86,6 +121,27 @@ const recommendedArtists: Artist[] = [
     category: "Makeup Artists",
   },
   {
+    name: "BOYbeautified",
+    type: "Makeup Artist",
+    image: "/images/artists/BOYbeautified.jpg",
+    facebook: "https://www.facebook.com/profile.php?id=100057522698341",
+    category: "Makeup Artists",
+  },
+  {
+    name: "Ashley Borabien",
+    type: "Makeup Artist",
+    image: "/images/artists/ashley_borabien.jpg",
+    facebook: "https://www.facebook.com/trixie.bora",
+    category: "Makeup Artists",
+  },
+  {
+    name: "Touchedbysandrapicat",
+    type: "Makeup Artist",
+    image: "/images/artists/Touchedbysandrapicat.jpg",
+    facebook: "https://www.facebook.com/profile.php?id=61573882007211",
+    category: "Makeup Artists",
+  },
+  {
     name: "Yecats Catering Services",
     type: "Catering Services",
     image: "/images/catering-services/yecats.jpg",
@@ -97,6 +153,20 @@ const recommendedArtists: Artist[] = [
     type: "Catering Services",
     image: "/images/catering-services/polmike.jpg",
     facebook: "https://www.facebook.com/Applejoybalmes",
+    category: "Catering Services",
+  },
+  {
+    name: "JASSY's Cuisine",
+    type: "Catering Services",
+    image: "/images/catering-services/jassy.jpg",
+    facebook: "https://www.facebook.com/jassyscuisine",
+    category: "Catering Services",
+  },
+  {
+    name: "Rekados Libmanan",
+    type: "Catering Services",
+    image: "/images/catering-services/rekados.jpg",
+    facebook: "https://www.facebook.com/rekados.libmanan",
     category: "Catering Services",
   },
   {
@@ -118,6 +188,20 @@ const recommendedArtists: Artist[] = [
     type: "Sound System",
     image: "/images/sound-system/rjpm.jpg",
     facebook: "https://www.facebook.com/share/12AK4aESe8g/",
+    category: "Sound Systems",
+  },
+  {
+    name: "HYPER BEAT Professional Lights and Sounds",
+    type: "Sound System",
+    image: "/images/sound-system/hyper_beat.jpg",
+    facebook: "https://www.facebook.com/HyperBeatPro",
+    category: "Sound Systems",
+  },
+  {
+    name: "Pro-1 Importa Lights and Sounds",
+    type: "Sound System",
+    image: "/images/sound-system/importa.jpg",
+    facebook: "https://www.facebook.com/profile.php?id=100090782075317",
     category: "Sound Systems",
   },
 ]
@@ -248,4 +332,3 @@ async function FeaturedVenues() {
 function VideoPlayerWrapper({ url }: { url: string }) {
   return <VideoPlayer url={url} />
 }
-
