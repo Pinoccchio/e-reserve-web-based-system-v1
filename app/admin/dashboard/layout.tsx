@@ -1,5 +1,6 @@
 "use client"
 
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import type React from "react"
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
@@ -42,25 +43,29 @@ export default function DashboardLayout({
   const router = useRouter()
   const pathname = usePathname()
 
-  // Completely disable browser back/forward navigation
+  // Handle browser navigation within the dashboard
   useEffect(() => {
+    // Store the current path when the component mounts
+    const currentPath = window.location.pathname
+
     // This function will be called whenever the user tries to navigate
-    const disableBackButton = () => {
-      // Push the current state again to prevent navigation
-      window.history.pushState(null, "", window.location.href)
+    const handlePopState = (event: PopStateEvent) => {
+      // If trying to navigate away from the dashboard entirely, prevent it
+      if (!window.location.pathname.startsWith("/admin/dashboard")) {
+        // Push current path back to history to stay in the dashboard
+        window.history.pushState(null, "", currentPath)
+      }
+      // Otherwise, allow navigation between dashboard pages
     }
 
-    // Push state on initial load to replace the entry that got us here
-    window.history.pushState(null, "", window.location.href)
-
     // Add event listener for popstate (triggered when back/forward buttons are clicked)
-    window.addEventListener("popstate", disableBackButton)
+    window.addEventListener("popstate", handlePopState)
 
     // Clean up the event listener when the component unmounts
     return () => {
-      window.removeEventListener("popstate", disableBackButton)
+      window.removeEventListener("popstate", handlePopState)
     }
-  }, [])
+  }, [pathname])
 
   useEffect(() => {
     const checkMobile = () => {
