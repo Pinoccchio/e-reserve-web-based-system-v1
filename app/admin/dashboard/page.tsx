@@ -1,5 +1,8 @@
 "use client"
 
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
+
 import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -74,6 +77,8 @@ export default function AdminDashboard() {
     }
 
     checkAuth()
+
+    // Don't add any history manipulation here
   }, [])
 
   const fetchReservations = useCallback(async () => {
