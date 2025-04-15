@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { MoreVertical, Check, X, MessageSquare, Bot, Send } from "lucide-react"
+import { MoreVertical, Check, X, MessageSquare, Bot, Send } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
 
 interface User {
@@ -17,6 +18,7 @@ interface User {
   last_name: string
   email: string
   account_type: string
+  unread_count?: number
 }
 
 interface Message {
@@ -33,6 +35,11 @@ interface BotMessage {
   content: string
 }
 
+interface UnreadCount {
+  sender_id: string
+  count: number
+}
+
 export default function ChatPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
   const [admins, setAdmins] = useState<User[]>([])
@@ -44,6 +51,7 @@ export default function ChatPage() {
   const [isChatBotMode, setIsChatBotMode] = useState(true)
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   const fetchCurrentUser = useCallback(async () => {
     try {
@@ -72,6 +80,7 @@ export default function ChatPage() {
     if (!currentUser) return
 
     try {
+      // Get ADMIN users for end-users to chat with
       const { data: adminData, error: adminError } = await supabase
         .from("users")
         .select("id, first_name, last_name, email, account_type")
@@ -79,7 +88,33 @@ export default function ChatPage() {
 
       if (adminError) throw adminError
 
-      setAdmins(adminData)
+      // Fetch unread counts
+      const { data: unreadCounts, error: countError } = await supabase
+        .from("messages")
+        .select("sender_id, is_read")
+        .eq("receiver_id", currentUser.id)
+        .eq("is_read", "no")
+
+      if (countError) throw countError
+
+      // Group unread counts by sender
+      const groupedCounts: UnreadCount[] = unreadCounts.reduce((acc, message) => {
+        const existingCount = acc.find((count) => count.sender_id === message.sender_id)
+        if (existingCount) {
+          existingCount.count += 1 // Increment existing count
+        } else {
+          acc.push({ sender_id: message.sender_id, count: 1 }) // New count
+        }
+        return acc
+      }, [] as UnreadCount[])
+
+      // Add unread counts to admins
+      const adminsWithUnreadCounts = adminData.map((admin) => ({
+        ...admin,
+        unread_count: groupedCounts.find((count) => count.sender_id === admin.id)?.count || 0,
+      }))
+
+      setAdmins(adminsWithUnreadCounts)
     } catch (error) {
       console.error("Error fetching admins:", error)
       setError("Failed to fetch admins. Please try again later.")
@@ -122,6 +157,7 @@ export default function ChatPage() {
     if (!currentUser || !selectedAdmin) return
 
     try {
+      setIsLoading(true)
       const { data, error } = await supabase
         .from("messages")
         .select("*")
@@ -132,21 +168,49 @@ export default function ChatPage() {
 
       if (error) throw error
       setMessages(data || [])
+
+      // Mark messages as read
+      const unreadMessages = data?.filter((msg) => msg.receiver_id === currentUser.id && msg.is_read === "no") || []
+
+      if (unreadMessages.length > 0) {
+        await Promise.all(
+          unreadMessages.map((msg) => supabase.from("messages").update({ is_read: "yes" }).eq("id", msg.id)),
+        )
+        fetchAdmins() // Update unread counts after marking messages as read
+      }
+
+      // Scroll to bottom after messages are updated
+      setTimeout(scrollToBottom, 100)
     } catch (error) {
       console.error("Error fetching messages:", error)
       setError("Failed to fetch messages. Please try again later.")
+    } finally {
+      setIsLoading(false)
     }
-  }, [currentUser, selectedAdmin])
+  }, [currentUser, selectedAdmin, fetchAdmins])
 
   useEffect(() => {
-    if (currentUser && selectedAdmin) {
+    if (currentUser && selectedAdmin && !isChatBotMode) {
       fetchMessages()
     }
-  }, [currentUser, selectedAdmin, fetchMessages])
+  }, [currentUser, selectedAdmin, fetchMessages, isChatBotMode])
 
   const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    if (messagesEndRef.current) {
+      // Only scroll the chat container, not the whole page
+      const chatContainer = messagesContainerRef.current
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight
+      }
+    }
   }, [])
+
+  // Scroll to bottom whenever messages or botMessages change
+  useEffect(() => {
+    if (messages.length > 0 || botMessages.length > 0) {
+      scrollToBottom()
+    }
+  }, [messages, botMessages, scrollToBottom])
 
   const sendMessage = async () => {
     if (!currentUser || !selectedAdmin || !newMessage.trim()) return
@@ -205,10 +269,13 @@ export default function ChatPage() {
           content: "Hello! How can I help you today with our venue reservation system?",
         },
       ])
+      // Scroll to bottom when switching to chatbot mode
+      setTimeout(scrollToBottom, 100)
     }
   }
 
-  const handleSendMessage = async () => {
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (newMessage.trim() === "" || isLoading) return
 
     if (isChatBotMode) {
@@ -246,6 +313,8 @@ export default function ChatPage() {
             content: data.output || "I'm sorry, I couldn't process that request.",
           },
         ])
+        
+        setTimeout(scrollToBottom, 100)
       } catch (error) {
         console.error("Error getting chatbot response:", error)
         setError(error instanceof Error ? error.message : "Failed to get response. Please try again.")
@@ -260,9 +329,12 @@ export default function ChatPage() {
     }
   }
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [scrollToBottom])
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      handleSendMessage(e as unknown as React.FormEvent)
+    }
+  }
 
   return (
     <div className="container mx-auto p-4 flex flex-col">
@@ -303,6 +375,17 @@ export default function ChatPage() {
                       <p className="font-semibold">{`${admin.first_name} ${admin.last_name}`}</p>
                       <p className="text-sm text-gray-500">{admin.email}</p>
                     </div>
+                    {admin.unread_count !== undefined && (
+                      admin.unread_count > 0 ? (
+                        <Badge variant="destructive" className="animate-pulse">
+                          {admin.unread_count} new
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-gray-400">
+                          0
+                        </Badge>
+                      )
+                    )}
                   </li>
                 ))}
               </ul>
@@ -320,9 +403,18 @@ export default function ChatPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col min-h-0">
-            <div className="overflow-y-auto h-[calc(100%-4rem)] mb-4 space-y-4 p-4">
-              {isChatBotMode
-                ? botMessages.map((message, index) => (
+            <div
+              ref={messagesContainerRef}
+              className="overflow-y-auto h-[calc(100%-4rem)] mb-4 space-y-4 p-4 flex flex-col"
+              id="chat-messages-container"
+            >
+              {isLoading && !isChatBotMode ? (
+                <div className="flex items-center justify-center h-full">
+                  <p>Loading messages...</p>
+                </div>
+              ) : isChatBotMode ? (
+                <div className="flex-grow">
+                  {botMessages.map((message, index) => (
                     <div key={index} className={`mb-4 ${message.role === "user" ? "text-right" : "text-left"}`}>
                       <span
                         className={`inline-block rounded-lg px-3 py-2 ${
@@ -332,11 +424,19 @@ export default function ChatPage() {
                         {message.content}
                       </span>
                     </div>
-                  ))
-                : messages.map((message) => (
+                  ))}
+                  <div ref={messagesEndRef} />
+                </div>
+              ) : messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full text-gray-500">
+                  <p>{selectedAdmin ? "No messages yet. Start a conversation!" : "Select an admin to start chatting"}</p>
+                </div>
+              ) : (
+                <div className="flex-grow">
+                  {messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex items-start gap-2 ${
+                      className={`flex items-start gap-2 mb-4 ${
                         message.sender_id === currentUser?.id ? "justify-end" : "justify-start"
                       }`}
                     >
@@ -383,24 +483,24 @@ export default function ChatPage() {
                       )}
                     </div>
                   ))}
-              <div ref={messagesEndRef} />
+                  <div ref={messagesEndRef} />
+                </div>
+              )}
             </div>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                handleSendMessage()
-              }}
-              className="flex-none flex w-full items-center space-x-2"
-            >
+            <form onSubmit={handleSendMessage} className="flex-none flex w-full items-center space-x-2">
               <Input
                 type="text"
                 placeholder="Type your message..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={handleKeyPress}
                 disabled={isLoading || (!isChatBotMode && !selectedAdmin)}
                 className="flex-1"
               />
-              <Button type="submit" disabled={isLoading || (!isChatBotMode && !selectedAdmin)}>
+              <Button 
+                type="submit" 
+                disabled={isLoading || (!isChatBotMode && !selectedAdmin) || !newMessage.trim()}
+              >
                 <Send className="h-4 w-4 mr-2" />
                 Send
               </Button>
@@ -411,4 +511,3 @@ export default function ChatPage() {
     </div>
   )
 }
-

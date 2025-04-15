@@ -36,7 +36,7 @@ export function RootLayoutClient({
     return () => {
       authListener.subscription.unsubscribe()
     }
-  }, [router])
+  }, [router, pathname]) // Add pathname as a dependency
 
   const checkAuth = async () => {
     const {
@@ -49,6 +49,18 @@ export function RootLayoutClient({
   }
 
   const checkUserType = async (userId: string) => {
+    // Check if user is already in the correct dashboard area
+    const isAdminDashboard = pathname?.startsWith("/admin/dashboard")
+    const isEndUserDashboard = pathname?.startsWith("/end-user/dashboard")
+    const isPaymentCollector = pathname?.startsWith("/payment_collector")
+    const isMDRRStaff = pathname?.startsWith("/mdrr-staff")
+
+    // If user is already in a dashboard area, don't redirect
+    if (isAdminDashboard || isEndUserDashboard || isPaymentCollector || isMDRRStaff) {
+      return
+    }
+
+    // Only redirect if user is on the homepage or non-dashboard pages
     const { data } = await supabase.from("users").select("account_type").eq("id", userId).single()
     if (data?.account_type === "admin") {
       router.push("/admin/dashboard")
@@ -134,4 +146,3 @@ export function RootLayoutClient({
     </>
   )
 }
-

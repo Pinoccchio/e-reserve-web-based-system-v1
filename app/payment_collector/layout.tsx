@@ -33,6 +33,32 @@ export default function PaymentCollectorLayout({
   const [isMobile, setIsMobile] = useState(false)
   const [userName, setUserName] = useState("")
   const router = useRouter()
+  const [disableBackListener, setDisableBackListener] = useState<(() => void) | null>(null)
+
+  // Disable browser back button
+  useEffect(() => {
+    // Push current state to history stack
+    window.history.pushState(null, "", window.location.pathname)
+
+    // Function to handle popstate (back/forward button clicks)
+    const handlePopState = () => {
+      // Push state again to prevent navigation
+      window.history.pushState(null, "", window.location.pathname)
+    }
+
+    // Add event listener
+    window.addEventListener("popstate", handlePopState)
+
+    // Store the cleanup function
+    setDisableBackListener(() => () => {
+      window.removeEventListener("popstate", handlePopState)
+    })
+
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [])
 
   useEffect(() => {
     const checkMobile = () => {
@@ -57,7 +83,7 @@ export default function PaymentCollectorLayout({
           setUserName(`${data.first_name} ${data.last_name}`)
         }
       } else {
-        router.push("/")
+        window.location.replace("/")
       }
     }
 
@@ -66,10 +92,16 @@ export default function PaymentCollectorLayout({
 
   const handleLogout = async () => {
     try {
+      // Remove the popstate event listener before logout
+      if (disableBackListener) {
+        disableBackListener()
+      }
+
       const { error } = await supabase.auth.signOut()
       if (error) throw error
+
       showToast("Signed out successfully", "success")
-      router.push("/")
+      window.location.replace("/")
     } catch (error) {
       console.error("Error signing out:", error)
       showToast("Error signing out. Please try again.", "error")
@@ -160,4 +192,3 @@ export default function PaymentCollectorLayout({
     </div>
   )
 }
-

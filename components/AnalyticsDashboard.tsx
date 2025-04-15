@@ -19,6 +19,7 @@ import {
   PieChart,
   Pie,
   Cell,
+  Label,
 } from "recharts"
 
 interface AnalyticsData {
@@ -163,6 +164,20 @@ export function AnalyticsDashboard() {
     return null
   }
 
+  // Format date labels to be more compact
+  const formatDateLabel = (dateStr: string) => {
+    const date = new Date(dateStr)
+    return date.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  }
+
+  // Format X-axis tick values for revenue
+  const formatRevenue = (value: number) => {
+    if (value >= 1000) {
+      return `₱${(value / 1000).toFixed(0)}k`
+    }
+    return `₱${value}`
+  }
+
   const renderMostPopularFacilitiesByPurpose = () => {
     if (!analyticsData.mostPopularFacilitiesByPurpose || analyticsData.mostPopularFacilitiesByPurpose.length === 0) {
       return null
@@ -178,11 +193,13 @@ export function AnalyticsDashboard() {
             <BarChart
               data={analyticsData.mostPopularFacilitiesByPurpose}
               layout="vertical"
-              margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+              margin={{ top: 20, right: 30, left: 150, bottom: 40 }}
             >
               <CartesianGrid strokeDasharray="3 3" />
-              <XAxis type="number" />
-              <YAxis dataKey="purpose" type="category" width={150} />
+              <XAxis type="number">
+                <Label value="Number of Bookings" position="insideBottom" offset={-10} />
+              </XAxis>
+              <YAxis dataKey="purpose" type="category" width={140} tick={{ fontSize: 12 }} />
               <Tooltip
                 content={({ active, payload, label }) => {
                   if (active && payload && payload.length) {
@@ -212,6 +229,7 @@ export function AnalyticsDashboard() {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {renderChart("Frequently Booked Facilities", analyticsData.frequentlyBookedFacilities, PieChart, {
+          margin: { top: 20, right: 30, left: 30, bottom: 20 },
           children: [
             <Pie
               key="pie"
@@ -222,37 +240,51 @@ export function AnalyticsDashboard() {
               cy="50%"
               outerRadius={80}
               fill="#8884d8"
-              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(2)}%)`}
+              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
             >
               {analyticsData.frequentlyBookedFacilities?.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
               ))}
             </Pie>,
             <Tooltip content={customTooltip} key="tooltip" />,
-            <Legend key="legend" />,
+            <Legend key="legend" layout="horizontal" verticalAlign="bottom" align="center" />,
           ],
         })}
 
         {renderChart("Total Bookings per Month", analyticsData.totalBookingsPerMonth, BarChart, {
+          margin: { top: 20, right: 30, left: 60, bottom: 60 },
           children: [
             <CartesianGrid strokeDasharray="3 3" key="grid" />,
-            <XAxis dataKey="month" key="x-axis" />,
-            <YAxis key="y-axis" />,
+            <XAxis dataKey="month" key="x-axis" tick={{ fontSize: 12 }}>
+              <Label value="Month" position="bottom" offset={20} />
+            </XAxis>,
+            <YAxis key="y-axis" tick={{ fontSize: 12 }}>
+              <Label
+                value="Number of Bookings"
+                angle={-90}
+                position="insideLeft"
+                offset={-40}
+                style={{ textAnchor: "middle" }}
+              />
+            </YAxis>,
             <Tooltip key="tooltip" />,
-            <Legend key="legend" />,
-            <Bar dataKey="count" fill="#82ca9d" key="bar" />,
+            <Legend key="legend" verticalAlign="top" height={36} />,
+            <Bar dataKey="count" fill="#82ca9d" key="bar" name="Bookings" />,
           ],
         })}
       </div>
 
       {renderChart("Most Popular Facilities", analyticsData.mostPopularFacilities, BarChart, {
         layout: "vertical",
+        margin: { top: 20, right: 30, left: 150, bottom: 60 },
         children: [
           <CartesianGrid strokeDasharray="3 3" key="grid" />,
-          <XAxis type="number" key="x-axis" />,
-          <YAxis dataKey="name" type="category" width={150} key="y-axis" />,
+          <XAxis type="number" key="x-axis" tick={{ fontSize: 12 }}>
+            <Label value="Number of Bookings / Percentage" position="bottom" offset={20} />
+          </XAxis>,
+          <YAxis dataKey="name" type="category" width={140} key="y-axis" tick={{ fontSize: 12 }} />,
           <Tooltip content={customTooltip} key="tooltip" />,
-          <Legend key="legend" />,
+          <Legend key="legend" verticalAlign="top" height={36} />,
           <Bar dataKey="count" fill="#ffc658" key="bar" name="Count" />,
           <Bar dataKey="percentage" fill="#8884d8" key="bar-percentage" name="Percentage" />,
         ],
@@ -262,28 +294,47 @@ export function AnalyticsDashboard() {
 
       {renderChart("Revenue by Facility", analyticsData.revenueByFacility, BarChart, {
         layout: "vertical",
+        margin: { top: 20, right: 30, left: 150, bottom: 60 },
         children: [
           <CartesianGrid strokeDasharray="3 3" key="grid" />,
-          <XAxis type="number" key="x-axis" />,
-          <YAxis dataKey="name" type="category" width={150} key="y-axis" />,
+          <XAxis type="number" key="x-axis" tick={{ fontSize: 12 }} tickFormatter={formatRevenue}>
+            <Label value="Revenue (₱) / Percentage" position="bottom" offset={20} />
+          </XAxis>,
+          <YAxis dataKey="name" type="category" width={140} key="y-axis" tick={{ fontSize: 12 }} />,
           <Tooltip content={customTooltip} key="tooltip" />,
-          <Legend key="legend" />,
+          <Legend key="legend" verticalAlign="top" height={36} />,
           <Bar dataKey="revenue" fill="#82ca9d" key="bar" name="Revenue" />,
           <Bar dataKey="percentage" fill="#8884d8" key="bar-percentage" name="Percentage" />,
         ],
       })}
 
       {renderChart("Booking Trend (Last 30 Days)", analyticsData.bookingTrend, LineChart, {
+        margin: { top: 20, right: 30, left: 60, bottom: 60 },
         children: [
           <CartesianGrid strokeDasharray="3 3" key="grid" />,
-          <XAxis dataKey="date" key="x-axis" />,
-          <YAxis key="y-axis" />,
-          <Tooltip key="tooltip" />,
-          <Legend key="legend" />,
-          <Line type="monotone" dataKey="count" stroke="#8884d8" key="line" />,
+          <XAxis
+            dataKey="date"
+            key="x-axis"
+            tick={{ fontSize: 10 }}
+            tickFormatter={formatDateLabel}
+            interval={2} // Show fewer ticks to prevent overlap
+          >
+            <Label value="Date" position="bottom" offset={20} />
+          </XAxis>,
+          <YAxis key="y-axis" tick={{ fontSize: 12 }}>
+            <Label
+              value="Number of Bookings"
+              angle={-90}
+              position="insideLeft"
+              offset={-40}
+              style={{ textAnchor: "middle" }}
+            />
+          </YAxis>,
+          <Tooltip key="tooltip" labelFormatter={(label) => new Date(label).toLocaleDateString()} />,
+          <Legend key="legend" verticalAlign="top" height={36} />,
+          <Line type="monotone" dataKey="count" stroke="#8884d8" key="line" name="Bookings" />,
         ],
       })}
     </div>
   )
 }
-

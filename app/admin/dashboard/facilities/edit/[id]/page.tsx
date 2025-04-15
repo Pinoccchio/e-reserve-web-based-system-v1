@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { createClient } from "@supabase/supabase-js"
 import { v4 as uuidv4 } from "uuid"
-import { X, Upload, ImageIcon, MapPin, Loader2, Video } from "lucide-react"
+import { X, Upload, ImageIcon, MapPin, Loader2, Video } from 'lucide-react'
 import { Loader } from "@googlemaps/js-api-loader"
 import { GoogleMapPicker } from "@/components/GoogleMapPicker"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
@@ -346,6 +346,7 @@ export default function EditFacilityPage({ params }: PageProps) {
                     <SelectContent>
                       <SelectItem value="Indoor">Indoor</SelectItem>
                       <SelectItem value="Outdoor">Outdoor</SelectItem>
+                      <SelectItem value="Covered Court">Covered Court</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

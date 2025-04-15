@@ -14,8 +14,6 @@ import { ChevronLeft, ChevronRight, Printer } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { jsPDF } from "jspdf"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// Remove this import
-// import { BookingAnalytics } from "@/components/BookingAnalytics"
 
 interface Facility {
   id: number
@@ -67,7 +65,12 @@ interface VenueStats {
   total_attendees: number
 }
 
+// Venues that require payment collector approval
 const SPECIAL_VENUES = ["SK Building", "Cultural Center", "Sports Complex"]
+
+// Free venues that require admin approval
+const FREE_VENUES = ["Skating Rink", "MO Conference Room", "Municipal Lobby", "Plaza Rizal", "Municipal Quadrangle"]
+
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 const MONTHS = [
   "January",
@@ -122,6 +125,7 @@ export default function BookingPage({ params }: PageProps) {
   const [showReceipt, setShowReceipt] = useState(false)
   const [receiptData, setReceiptData] = useState<ReceiptData | null>(null)
   const [venueStats, setVenueStats] = useState<VenueStats[]>([])
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
   const getReservationsForDate = (date: Date) => {
     return allReservations.filter((reservation) => {
@@ -146,6 +150,8 @@ export default function BookingPage({ params }: PageProps) {
 
     setSelectedDate(date)
     setShowBookingForm(true)
+    // Clear any previous form errors
+    setFormErrors({})
   }
 
   const findNextAvailableDates = (startDate: Date, count: number): Date[] => {
@@ -237,46 +243,92 @@ export default function BookingPage({ params }: PageProps) {
     return cells
   }
 
+  // Validate all form fields
+  const validateForm = (): boolean => {
+    const errors: Record<string, string> = {}
+
+    // Validate required fields
+    if (!selectedDate) errors.date = "Please select a date"
+    if (!startTime) errors.startTime = "Start time is required"
+    if (!endTime) errors.endTime = "End time is required"
+    if (!bookerName.trim()) errors.bookerName = "Name is required"
+    if (!purpose) errors.purpose = "Event type is required"
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!bookerEmail.trim()) {
+      errors.bookerEmail = "Email is required"
+    } else if (!emailRegex.test(bookerEmail)) {
+      errors.bookerEmail = "Please enter a valid email address"
+    }
+
+    // Validate phone number (numbers only)
+    const phoneRegex = /^\d+$/
+    if (!bookerPhone.trim()) {
+      errors.bookerPhone = "Phone number is required"
+    } else if (!phoneRegex.test(bookerPhone)) {
+      errors.bookerPhone = "Phone number must contain only digits"
+    } else if (bookerPhone.length < 10) {
+      errors.bookerPhone = "Phone number must be at least 10 digits"
+    }
+
+    // Validate number of attendees
+    if (numberOfAttendees) {
+      const attendeesNum = Number.parseInt(numberOfAttendees)
+      if (isNaN(attendeesNum)) {
+        errors.numberOfAttendees = "Number of attendees must be a valid number"
+      } else if (attendeesNum < 0) {
+        errors.numberOfAttendees = "Number of attendees cannot be negative"
+      } else if (facility && attendeesNum > facility.capacity) {
+        errors.numberOfAttendees = `Number of attendees cannot exceed facility capacity (${facility.capacity})`
+      }
+    }
+
+    // Validate time logic
+    if (startTime && endTime) {
+      if (!selectedDate) return false
+
+      const startDateTime = new Date(selectedDate)
+      startDateTime.setHours(Number(startTime.split(":")[0]), Number(startTime.split(":")[1]))
+
+      const endDateTime = new Date(selectedDate)
+      endDateTime.setHours(Number(endTime.split(":")[0]), Number(endTime.split(":")[1]))
+
+      // Check if end time is after start time
+      if (!isAfter(endDateTime, startDateTime)) {
+        errors.endTime = "End time must be after start time"
+      }
+
+      // Check if booking is within allowed hours (e.g., 7 AM to 10 PM)
+      const openingTime = setHours(selectedDate, 7)
+      const closingTime = setHours(selectedDate, 22)
+
+      if (isBefore(startDateTime, openingTime)) {
+        errors.startTime = "Bookings are only allowed from 7 AM"
+      }
+
+      if (isAfter(endDateTime, closingTime)) {
+        errors.endTime = "Bookings are only allowed until 10 PM"
+      }
+
+      // Check if booking duration is at least 1 hour
+      const durationInMinutes = (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60)
+      if (durationInMinutes < 60) {
+        errors.endTime = "Booking duration must be at least 1 hour"
+      }
+    }
+
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (
-      !selectedDate ||
-      !startTime ||
-      !endTime ||
-      !bookerName ||
-      !bookerEmail ||
-      !bookerPhone ||
-      !facility ||
-      !purpose
-    ) {
-      showToast("Please fill in all required fields", "error")
-      return
-    }
 
-    const startDateTime = new Date(selectedDate)
-    startDateTime.setHours(Number(startTime.split(":")[0]), Number(startTime.split(":")[1]))
-
-    const endDateTime = new Date(selectedDate)
-    endDateTime.setHours(Number(endTime.split(":")[0]), Number(endTime.split(":")[1]))
-
-    // Check if end time is after start time
-    if (!isAfter(endDateTime, startDateTime)) {
-      showToast("End time must be after start time", "error")
-      return
-    }
-
-    // Check if booking is within allowed hours (e.g., 7 AM to 10 PM)
-    const openingTime = setHours(selectedDate, 7)
-    const closingTime = setHours(selectedDate, 22)
-    if (isBefore(startDateTime, openingTime) || isAfter(endDateTime, closingTime)) {
-      showToast("Bookings are only allowed between 7 AM and 10 PM", "error")
-      return
-    }
-
-    // Check if booking duration is at least 1 hour
-    const durationInMinutes = (endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60)
-    if (durationInMinutes < 60) {
-      showToast("Booking duration must be at least 1 hour", "error")
+    // Validate all form fields
+    if (!validateForm()) {
+      // Show a general error message
+      showToast("Please correct the errors in the form", "error")
       return
     }
 
@@ -287,15 +339,25 @@ export default function BookingPage({ params }: PageProps) {
       if (userError) throw new Error("Failed to authenticate user")
       if (!userData.user) throw new Error("No authenticated user found")
 
+      const startDateTime = new Date(selectedDate!)
+      startDateTime.setHours(Number(startTime.split(":")[0]), Number(startTime.split(":")[1]))
+
+      const endDateTime = new Date(selectedDate!)
+      endDateTime.setHours(Number(endTime.split(":")[0]), Number(endTime.split(":")[1]))
+
       const usageHours = differenceInHours(endDateTime, startDateTime)
-      const totalPrice = facility.price_per_hour * usageHours
+      const totalPrice = facility!.price_per_hour * usageHours
 
-      const isSpecialVenue = SPECIAL_VENUES.includes(facility.name)
-      const isMOConferenceRoom = facility.name === "MO Conference Room"
+      const isSpecialVenue = SPECIAL_VENUES.includes(facility!.name)
+      const isFreeVenue = FREE_VENUES.includes(facility!.name)
+      const isMOConferenceRoom = facility!.name === "MO Conference Room"
 
+      // Determine which table to use for the booking
+      // Special venues go to payment_collector_approval
+      // Free venues and all other venues go to reservations
       const bookingData = {
         user_id: userData.user.id,
-        facility_id: facility.id,
+        facility_id: facility!.id,
         booker_name: bookerName,
         booker_email: bookerEmail,
         booker_phone: bookerPhone,
@@ -310,15 +372,19 @@ export default function BookingPage({ params }: PageProps) {
         event_type: purpose,
         attendees_count: Number.parseInt(numberOfAttendees) || 0,
         total_price: totalPrice,
-        // Add new fields for non-special venues
-        ...(!isSpecialVenue &&
-          !isMOConferenceRoom && {
-            is_read_admin: "no",
-            is_read_mdrr: "no",
-          }),
+        // Add fields for admin notification
+        ...((!isSpecialVenue || isFreeVenue) && {
+          is_read_admin: "no",
+        }),
+        // Add fields for MDRR notification if it's MO Conference Room
+        ...(isMOConferenceRoom && {
+          is_read_mdrr: "no",
+        }),
       }
 
-      const table = isSpecialVenue ? "payment_collector_approval" : "reservations"
+      // Special venues go to payment_collector_approval
+      // All other venues (including free venues) go to reservations
+      const table = isSpecialVenue && !isFreeVenue ? "payment_collector_approval" : "reservations"
 
       console.log("Inserting booking data into table:", table)
       console.log("Booking data:", bookingData)
@@ -339,7 +405,7 @@ export default function BookingPage({ params }: PageProps) {
 
       // Add facility usage data
       await supabase.from("facility_usage").insert({
-        facility_id: facility.id,
+        facility_id: facility!.id,
         reservation_id: newBooking.id,
         usage_date: startDateTime.toISOString().split("T")[0],
         usage_hours: usageHours,
@@ -347,20 +413,20 @@ export default function BookingPage({ params }: PageProps) {
       })
 
       const receiptData = {
-        booking_id: isSpecialVenue ? null : newBooking.id,
-        facility_id: facility.id,
+        booking_id: isSpecialVenue && !isFreeVenue ? null : newBooking.id,
+        facility_id: facility!.id,
         user_id: userData.user.id,
         booker_name: bookerName,
         booker_email: bookerEmail,
         booker_phone: bookerPhone,
-        facility_name: facility.name,
+        facility_name: facility!.name,
         start_time: startDateTime.toISOString(),
         end_time: endDateTime.toISOString(),
         purpose: purpose,
         number_of_attendees: numberOfAttendees ? Number.parseInt(numberOfAttendees) : null,
         special_requests: specialRequests,
         status: "Pending Approval",
-        price_per_hour: facility.price_per_hour,
+        price_per_hour: facility!.price_per_hour,
       }
 
       console.log("Inserting receipt data")
@@ -384,7 +450,7 @@ export default function BookingPage({ params }: PageProps) {
 
       const { error: notificationError } = await supabase.from("notifications").insert({
         user_id: userData.user.id,
-        message: `Your booking request for ${facility.name} has been submitted and is pending approval.`,
+        message: `Your booking request for ${facility!.name} has been submitted and is pending approval.`,
         action_type: "booking_created",
         related_id: receiptDataFromDB.id,
       })
@@ -396,7 +462,7 @@ export default function BookingPage({ params }: PageProps) {
 
       const transactionData = {
         user_id: userData.user.id,
-        facility_id: facility.id,
+        facility_id: facility!.id,
         action: "booking_created",
         action_by: userData.user.id,
         action_by_role: "end_user",
@@ -404,7 +470,7 @@ export default function BookingPage({ params }: PageProps) {
         status: "pending",
         details: JSON.stringify({
           receipt_id: receiptDataFromDB.id,
-          booking_id: isSpecialVenue ? newBooking.id : receiptDataFromDB.booking_id,
+          booking_id: isSpecialVenue && !isFreeVenue ? newBooking.id : receiptDataFromDB.booking_id,
           start_time: startDateTime.toISOString(),
           end_time: endDateTime.toISOString(),
           purpose: purpose,
@@ -421,13 +487,21 @@ export default function BookingPage({ params }: PageProps) {
         throw new Error(`Failed to create transaction: ${transactionError.message}`)
       }
 
-      if (isSpecialVenue) {
-        await createNotificationsForPaymentCollectors(facility.name, receiptDataFromDB.id)
+      // Create notifications based on venue type
+      if (isSpecialVenue && !isFreeVenue) {
+        // Special paid venues go to payment collectors
+        await createNotificationsForPaymentCollectors(facility!.name, receiptDataFromDB.id)
       } else if (isMOConferenceRoom) {
+        // MO Conference Room goes to MDRR staff
         await createNotificationsForMDRRStaff(receiptDataFromDB.id)
       } else {
-        await createNotificationsForAdmins(facility.name, receiptDataFromDB.id)
-        await createNotificationsForMDRRStaff(receiptDataFromDB.id)
+        // All other venues (including free venues) go to admins
+        await createNotificationsForAdmins(facility!.name, receiptDataFromDB.id)
+
+        // If it's a free venue, also notify MDRR staff
+        if (isFreeVenue) {
+          await createNotificationsForMDRRStaff(receiptDataFromDB.id)
+        }
       }
 
       showToast("Your booking request has been submitted for approval.", "success")
@@ -534,7 +608,7 @@ export default function BookingPage({ params }: PageProps) {
     if (!receiptData) return null
 
     const getDestination = () => {
-      if (SPECIAL_VENUES.includes(receiptData.facility_name)) {
+      if (SPECIAL_VENUES.includes(receiptData.facility_name) && !FREE_VENUES.includes(receiptData.facility_name)) {
         return "Payment Collector"
       } else if (receiptData.facility_name === "MO Conference Room") {
         return "MDRR Staff"
@@ -580,9 +654,9 @@ export default function BookingPage({ params }: PageProps) {
 
       // Add price information
       if (receiptData.price_per_hour > 0) {
-        addLine("Price", `₱${receiptData.price_per_hour.toFixed(2)}`)
+        addLine("Price", `₱${receiptData.price_per_hour.toFixed(2)} per day`)
       } else {
-        addLine("Price", "Free")
+        addLine("Price", "Free (still requires approval)")
       }
 
       y += lineHeight
@@ -646,7 +720,9 @@ export default function BookingPage({ params }: PageProps) {
             </p>
             <p>
               <strong>Price:</strong>{" "}
-              {receiptData.price_per_hour > 0 ? `₱${receiptData.price_per_hour.toFixed(2)}` : "Free"}
+              {receiptData.price_per_hour > 0
+                ? `₱${receiptData.price_per_hour.toFixed(2)} per day`
+                : "Free (still requires approval)"}
             </p>
           </div>
           <DialogFooter className="flex justify-between">
@@ -850,7 +926,9 @@ export default function BookingPage({ params }: PageProps) {
                   min="07:00"
                   max="22:00"
                   required
+                  className={formErrors.startTime ? "border-red-500" : ""}
                 />
+                {formErrors.startTime && <p className="text-red-500 text-sm mt-1">{formErrors.startTime}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="end-time">End Time (7 AM - 10 PM)</Label>
@@ -862,11 +940,20 @@ export default function BookingPage({ params }: PageProps) {
                   min="07:00"
                   max="22:00"
                   required
+                  className={formErrors.endTime ? "border-red-500" : ""}
                 />
+                {formErrors.endTime && <p className="text-red-500 text-sm mt-1">{formErrors.endTime}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="booker-name">Your Name</Label>
-                <Input id="booker-name" value={bookerName} onChange={(e) => setBookerName(e.target.value)} required />
+                <Input
+                  id="booker-name"
+                  value={bookerName}
+                  onChange={(e) => setBookerName(e.target.value)}
+                  required
+                  className={formErrors.bookerName ? "border-red-500" : ""}
+                />
+                {formErrors.bookerName && <p className="text-red-500 text-sm mt-1">{formErrors.bookerName}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="booker-email">Your Email</Label>
@@ -876,21 +963,33 @@ export default function BookingPage({ params }: PageProps) {
                   value={bookerEmail}
                   onChange={(e) => setBookerEmail(e.target.value)}
                   required
+                  className={formErrors.bookerEmail ? "border-red-500" : ""}
                 />
+                {formErrors.bookerEmail && <p className="text-red-500 text-sm mt-1">{formErrors.bookerEmail}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="booker-phone">Your Phone Number</Label>
                 <Input
                   id="booker-phone"
+                  type="tel"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={bookerPhone}
-                  onChange={(e) => setBookerPhone(e.target.value)}
+                  onChange={(e) => {
+                    // Only allow numeric input
+                    const value = e.target.value.replace(/[^0-9]/g, "")
+                    setBookerPhone(value)
+                  }}
                   required
+                  placeholder="Enter your phone number"
+                  className={formErrors.bookerPhone ? "border-red-500" : ""}
                 />
+                {formErrors.bookerPhone && <p className="text-red-500 text-sm mt-1">{formErrors.bookerPhone}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="event-type">Event Type</Label>
                 <Select value={purpose} onValueChange={setPurpose} required>
-                  <SelectTrigger id="event-type">
+                  <SelectTrigger id="event-type" className={formErrors.purpose ? "border-red-500" : ""}>
                     <SelectValue placeholder="Select event type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -901,23 +1000,31 @@ export default function BookingPage({ params }: PageProps) {
                     ))}
                   </SelectContent>
                 </Select>
+                {formErrors.purpose && <p className="text-red-500 text-sm mt-1">{formErrors.purpose}</p>}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="number-of-attendees">Number of Attendees</Label>
                 <Input
                   id="number-of-attendees"
                   type="number"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
                   value={numberOfAttendees}
                   onChange={(e) => {
-                    const value = Number.parseInt(e.target.value)
-                    if (!isNaN(value) && value >= 0 && value <= facility.capacity) {
-                      setNumberOfAttendees(e.target.value)
+                    // Only allow numeric input
+                    const value = e.target.value.replace(/[^0-9]/g, "")
+                    if (value === "" || (Number.parseInt(value) >= 0 && Number.parseInt(value) <= facility.capacity)) {
+                      setNumberOfAttendees(value)
                     }
                   }}
                   min="0"
                   max={facility.capacity}
                   placeholder={`Enter the expected number of attendees (max ${facility.capacity})`}
+                  className={formErrors.numberOfAttendees ? "border-red-500" : ""}
                 />
+                {formErrors.numberOfAttendees && (
+                  <p className="text-red-500 text-sm mt-1">{formErrors.numberOfAttendees}</p>
+                )}
                 <p className="text-sm text-muted-foreground mt-1">Maximum capacity: {facility.capacity}</p>
               </div>
               <div className="space-y-2">
@@ -937,15 +1044,6 @@ export default function BookingPage({ params }: PageProps) {
         </CardContent>
       </Card>
       {renderReceipt()}
-
-      {/* Remove or comment out the BookingAnalytics section for now */}
-      {/*
-      <div className="mt-8">
-        <h2 className="text-2xl font-bold mb-4">Booking Analytics</h2>
-        <BookingAnalytics />
-      </div>
-      */}
     </div>
   )
 }
-

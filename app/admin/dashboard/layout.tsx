@@ -4,7 +4,7 @@ import type React from "react"
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { Home, Building, Calendar, Bell, ChevronDown, User, Menu, X, LogOut, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -40,6 +40,27 @@ export default function DashboardLayout({
   const [unreadNotifications, setUnreadNotifications] = useState(0)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const router = useRouter()
+  const pathname = usePathname()
+
+  // Completely disable browser back/forward navigation
+  useEffect(() => {
+    // This function will be called whenever the user tries to navigate
+    const disableBackButton = () => {
+      // Push the current state again to prevent navigation
+      window.history.pushState(null, "", window.location.href)
+    }
+
+    // Push state on initial load to replace the entry that got us here
+    window.history.pushState(null, "", window.location.href)
+
+    // Add event listener for popstate (triggered when back/forward buttons are clicked)
+    window.addEventListener("popstate", disableBackButton)
+
+    // Clean up the event listener when the component unmounts
+    return () => {
+      window.removeEventListener("popstate", disableBackButton)
+    }
+  }, [])
 
   useEffect(() => {
     const checkMobile = () => {
@@ -160,7 +181,12 @@ export default function DashboardLayout({
       const { error } = await supabase.auth.signOut()
       if (error) throw error
       showToast("Signed out successfully", "success")
-      router.push("/")
+
+      // Allow navigation when logging out
+      window.onpopstate = null
+
+      // Use location.replace to avoid adding to history
+      window.location.replace("/")
     } catch (error) {
       console.error("Error signing out:", error)
       showToast("Error signing out. Please try again.", "error")
@@ -254,4 +280,3 @@ export default function DashboardLayout({
     </div>
   )
 }
-

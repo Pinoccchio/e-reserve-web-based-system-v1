@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
+import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -61,6 +62,19 @@ export default function AdminDashboard() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(true)
   const [currentDate, setCurrentDate] = useState(new Date())
+  const router = useRouter()
+
+  // Check authentication on page load
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { data } = await supabase.auth.getSession()
+      if (!data.session) {
+        window.location.replace("/")
+      }
+    }
+
+    checkAuth()
+  }, [])
 
   const fetchReservations = useCallback(async () => {
     setIsLoading(true)
@@ -142,7 +156,10 @@ export default function AdminDashboard() {
       <h1 className="text-3xl font-bold">Admin Dashboard</h1>
 
       {/* Analytics Dashboard */}
-      <AnalyticsDashboard />
+      <div className="mb-8">
+        <h2 className="text-2xl font-semibold mb-4">Analytics Overview</h2>
+        <AnalyticsDashboard />
+      </div>
 
       {/* Calendar View */}
       <Card className="mb-16 h-[600px] flex flex-col">
@@ -299,4 +316,3 @@ export default function AdminDashboard() {
     </div>
   )
 }
-

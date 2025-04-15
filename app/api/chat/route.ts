@@ -148,8 +148,10 @@ export async function POST(request: Request) {
       Venue Information:
       ${JSON.stringify(venues, null, 2)}
 
+      IMPORTANT: Although the data shows "price_per_hour", always refer to pricing as "per day" in your responses. For example, if a venue has price_per_hour: 1500, tell users it costs ₱1,500 per day.
+
       Additional Information:
-      1. For special venues (SK Building, Cultural Center, Sports Complex), there's a booking fee of ₱1,500 per hour.
+      1. For special venues (SK Building, Cultural Center, Sports Complex), there's a booking fee of ₱1,500 per day.
       2. Other venues are free to book but still require approval.
       3. The booking process involves selecting a venue, choosing a date and time, and submitting a request.
       4. For paid venues, users need to visit a payment collector to confirm their payment after receiving a digital receipt.
@@ -159,7 +161,7 @@ export async function POST(request: Request) {
 
       User query: "${text}"
 
-      Respond in a friendly and helpful manner, keeping the response concise and relevant to the venue reservation system. If asked about specific venues, provide details about their capacity, type (indoor/outdoor), and any associated fees.
+      Respond in a friendly and helpful manner, keeping the response concise and relevant to the venue reservation system. If asked about specific venues, provide details about their capacity, type (indoor/outdoor), and any associated fees. Always refer to pricing as "per day" even though the data field is named "price_per_hour".
     `
 
     const result = await model.generateContent(prompt)
@@ -184,4 +186,3 @@ export async function POST(request: Request) {
     )
   }
 }
-

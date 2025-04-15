@@ -11,13 +11,16 @@ import { showToast } from "@/components/ui/toast"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { format } from "date-fns"
-import { Calendar, MapPin, Building, Users, AlertCircle, Search } from "lucide-react"
+import { Calendar, MapPin, Building, Users, AlertCircle, Search, Info } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 interface Facility {
   id: number
   name: string
   location: string
+  price_per_hour: number
+  type: string
 }
 
 interface Reservation {
@@ -40,6 +43,9 @@ interface Reservation {
   admin_action_at: string | null
 }
 
+// Free venues that require admin approval
+const FREE_VENUES = ["Skating Rink", "MO Conference Room", "Municipal Lobby", "Plaza Rizal", "Municipal Quadrangle"]
+
 export default function ReservationsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [statusFilter, setStatusFilter] = useState<string>("all")
@@ -57,7 +63,7 @@ export default function ReservationsPage() {
         .from("reservations")
         .select(`
           *,
-          facility:facilities(id, name, location)
+          facility:facilities(id, name, location, price_per_hour, type)
         `)
         .order("created_at", { ascending: false })
 
@@ -241,6 +247,10 @@ export default function ReservationsPage() {
     }
   }
 
+  const isFreeVenue = (facilityName: string) => {
+    return FREE_VENUES.includes(facilityName)
+  }
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -255,6 +265,16 @@ export default function ReservationsPage() {
   return (
     <div className="space-y-6 p-6 max-w-full">
       <h1 className="text-3xl font-bold">Admin Reservations</h1>
+
+      <Alert variant="default" className="mb-4 border-blue-200 bg-blue-50">
+        <Info className="h-4 w-4 text-blue-500" />
+        <AlertTitle className="text-blue-700">Important Note</AlertTitle>
+        <AlertDescription className="text-blue-600">
+          Free venues (₱0/day) still require admin approval. These include: Skating Rink, MO Conference Room, Municipal
+          Lobby, Plaza Rizal, and Municipal Quadrangle.
+        </AlertDescription>
+      </Alert>
+
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
           <strong className="font-bold">Error: </strong>
@@ -312,7 +332,14 @@ export default function ReservationsPage() {
                           className={reservation.is_read_admin === "no" ? "bg-blue-50" : ""}
                         >
                           <TableCell className="font-medium">{reservation.booker_name}</TableCell>
-                          <TableCell>{reservation.facility.name}</TableCell>
+                          <TableCell>
+                            {reservation.facility.name}
+                            {isFreeVenue(reservation.facility.name) && (
+                              <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-800">
+                                Free
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell>{format(new Date(reservation.start_time), "MMM d, yyyy h:mm a")}</TableCell>
                           <TableCell>{format(new Date(reservation.end_time), "MMM d, yyyy h:mm a")}</TableCell>
                           <TableCell>
@@ -365,6 +392,20 @@ export default function ReservationsPage() {
                                           <div className="space-y-2">
                                             <p>
                                               <strong>Name:</strong> {reservation.facility.name}
+                                              {isFreeVenue(reservation.facility.name) && (
+                                                <Badge variant="outline" className="ml-2 bg-blue-50 text-blue-800">
+                                                  Free Venue
+                                                </Badge>
+                                              )}
+                                            </p>
+                                            <p>
+                                              <strong>Type:</strong> {reservation.facility.type}
+                                            </p>
+                                            <p>
+                                              <strong>Price:</strong>{" "}
+                                              {reservation.facility.price_per_hour > 0
+                                                ? `₱${reservation.facility.price_per_hour.toFixed(2)} per day`
+                                                : "Free (still requires approval)"}
                                             </p>
                                             <p className="flex items-center">
                                               <MapPin className="mr-2 h-4 w-4 text-gray-500" />
@@ -462,4 +503,3 @@ export default function ReservationsPage() {
     </div>
   )
 }
-

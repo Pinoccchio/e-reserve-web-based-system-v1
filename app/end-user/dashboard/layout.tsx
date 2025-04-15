@@ -41,6 +41,25 @@ export default function EndUserDashboardLayout({
   const router = useRouter()
   const [unreadReservations, setUnreadReservations] = useState(0)
 
+  // Disable browser back/forward buttons
+  useEffect(() => {
+    // Push current state to history to prevent going back
+    window.history.pushState(null, "", window.location.href)
+
+    // Handle popstate event (when user clicks back/forward)
+    const handlePopState = () => {
+      window.history.pushState(null, "", window.location.href)
+    }
+
+    // Add event listener
+    window.addEventListener("popstate", handlePopState)
+
+    // Clean up
+    return () => {
+      window.removeEventListener("popstate", handlePopState)
+    }
+  }, [])
+
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768)
@@ -181,10 +200,16 @@ export default function EndUserDashboardLayout({
 
   const handleLogout = async () => {
     try {
+      // Remove the popstate event listener before logging out
+      window.removeEventListener("popstate", () => {})
+
       const { error } = await supabase.auth.signOut()
       if (error) throw error
+
       showToast("Signed out successfully", "success")
-      router.push("/")
+
+      // Use window.location.replace to allow navigation after logout
+      window.location.replace("/")
     } catch (error) {
       console.error("Error signing out:", error)
       showToast("Error signing out. Please try again.", "error")
@@ -282,4 +307,3 @@ export default function EndUserDashboardLayout({
     </div>
   )
 }
-

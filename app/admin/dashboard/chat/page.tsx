@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { MoreVertical, Check, X } from "lucide-react"
+import { MoreVertical, Check, X, Send } from 'lucide-react'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 
@@ -43,6 +43,7 @@ export default function AdminChatPage() {
   const [newMessage, setNewMessage] = useState("")
   const [error, setError] = useState<string | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesContainerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     fetchCurrentUser()
@@ -82,13 +83,19 @@ export default function AdminChatPage() {
     }
   }, [selectedUser])
 
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+  // Updated scrollToBottom function to scroll only the chat container
+  const scrollToBottom = useCallback(() => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight
+    }
+  }, [])
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+  // Call scrollToBottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      setTimeout(scrollToBottom, 100)
+    }
+  }, [messages, scrollToBottom])
 
   const fetchCurrentUser = async () => {
     try {
@@ -170,6 +177,16 @@ export default function AdminChatPage() {
 
       if (error) throw error
       setMessages(data || [])
+
+      // Mark messages as read
+      const unreadMessages = data?.filter((msg) => msg.receiver_id === currentUser.id && msg.is_read === "no") || []
+
+      if (unreadMessages.length > 0) {
+        await Promise.all(
+          unreadMessages.map((msg) => supabase.from("messages").update({ is_read: "yes" }).eq("id", msg.id)),
+        )
+        fetchUsers() // Refresh unread counts
+      }
     } catch (error) {
       console.error("Error fetching messages:", error)
       setError("Failed to fetch messages. Please try again later.")
@@ -190,6 +207,8 @@ export default function AdminChatPage() {
       if (error) throw error
       setNewMessage("")
       await fetchMessages()
+      // Scroll to bottom after sending message
+      setTimeout(scrollToBottom, 100)
     } catch (error) {
       console.error("Error sending message:", error)
       setError("Failed to send message. Please try again.")
@@ -219,6 +238,13 @@ export default function AdminChatPage() {
     } catch (error) {
       console.error("Error toggling message read status:", error)
       setError("Failed to update message status. Please try again.")
+    }
+  }
+
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault()
+      sendMessage()
     }
   }
 
@@ -280,11 +306,15 @@ export default function AdminChatPage() {
           <CardContent>
             {selectedUser ? (
               <>
-                <div className="h-[400px] overflow-y-auto mb-4 space-y-4 p-4"> {/* Fixed height with scrolling */}
+                <div 
+                  ref={messagesContainerRef}
+                  className="h-[400px] overflow-y-auto mb-4 space-y-4 p-4"
+                  id="chat-messages-container"
+                > 
                   {messages.map((message) => (
                     <div
                       key={message.id}
-                      className={`flex items-start gap-2 ${
+                      className={`flex items-start gap-2 mb-4 ${
                         message.sender_id === currentUser?.id ? "justify-end" : "justify-start"
                       }`}
                     >
@@ -339,10 +369,13 @@ export default function AdminChatPage() {
                     placeholder="Type your message..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                    onKeyDown={handleKeyPress}
                     className="flex-1"
                   />
-                  <Button onClick={sendMessage}>Send</Button>
+                  <Button onClick={sendMessage} disabled={!newMessage.trim()}>
+                    <Send className="h-4 w-4 mr-2" />
+                    Send
+                  </Button>
                 </div>
               </>
             ) : (
