@@ -35,6 +35,7 @@ export default function PaymentCollectorLayout({
   const [unreadApprovals, setUnreadApprovals] = useState(0)
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
   const router = useRouter()
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const pathname = usePathname()
   const [disableBackListener, setDisableBackListener] = useState<(() => void) | null>(null)
 
