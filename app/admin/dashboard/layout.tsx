@@ -110,12 +110,15 @@ export default function DashboardLayout({
           .select("*", { count: "exact", head: true })
           .eq("receiver_id", currentUserId)
           .eq("is_read", "no"),
-        supabase.from("reservations").select("*", { count: "exact", head: true }).eq("is_read_admin", "no"),
+        supabase
+          .from("reservations")
+          .select("*", { count: "exact", head: true })
+          .or("is_read_admin.eq.no,is_read_admin.is.null"),
         supabase
           .from("notifications")
           .select("*", { count: "exact", head: true })
           .eq("user_id", currentUserId)
-          .eq("is_read_admin", "no"),
+          .or("is_read_admin.eq.no,is_read_admin.is.null"),
       ])
 
       if (messageError) {
