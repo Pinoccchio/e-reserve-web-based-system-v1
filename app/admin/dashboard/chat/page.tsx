@@ -193,6 +193,7 @@ export default function AdminChatPage() {
 
   // Handle new message from real-time subscription
   const handleNewMessage = useCallback(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (payload: any) => {
       const newMsg = payload.new as Message
 

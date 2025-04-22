@@ -64,6 +64,7 @@ export default function PaymentCollectorApprovalsPage() {
 
       if (error) throw error
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const approvalsWithTotalPrice = data.map((approval: any) => ({
         ...approval,
         total_price: approval.total_price || calculateTotalPrice(approval),

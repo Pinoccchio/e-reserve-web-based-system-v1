@@ -4,7 +4,11 @@ import type React from "react"
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useRouter, usePathname } from "next/navigation"
+import {
+  useRouter,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  usePathname,
+} from "next/navigation"
 import { ClipboardList, Bell, ChevronDown, User, Menu, X, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -186,10 +190,10 @@ export default function PaymentCollectorLayout({
       if (disableBackListener) {
         disableBackListener()
       }
-      
+
       const { error } = await supabase.auth.signOut()
       if (error) throw error
-      
+
       showToast("Signed out successfully", "success")
       window.location.replace("/")
     } catch (error) {
