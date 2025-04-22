@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { supabase } from "@/lib/supabase"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { format } from "date-fns"
-import { Calendar, MapPin, Building, Users, AlertCircle, Search } from "lucide-react"
+import { Calendar, MapPin, Building, Users, AlertCircle, Search, Check, RefreshCw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { showToast } from "@/components/ui/toast"
 
@@ -35,11 +35,13 @@ interface Reservation {
   facility_id: number
   facility: Facility
   cancellation_reason: string | null
+  is_read_mdrr: "yes" | "no" | null
 }
 
 export default function MDRRStaffApprovalsPage() {
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [readFilter, setReadFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -50,6 +52,7 @@ export default function MDRRStaffApprovalsPage() {
 
   async function fetchReservations() {
     try {
+      setIsLoading(true)
       const { data, error } = await supabase
         .from("reservations")
         .select(`
@@ -69,11 +72,11 @@ export default function MDRRStaffApprovalsPage() {
       } else {
         setReservations([])
       }
-      setIsLoading(false)
     } catch (error) {
       console.error("Error fetching reservations:", error)
       setError("Failed to fetch reservations. Please try again.")
       setReservations([])
+    } finally {
       setIsLoading(false)
     }
   }
@@ -107,10 +110,16 @@ export default function MDRRStaffApprovalsPage() {
 
       if (!reservationData) throw new Error("Reservation data not found")
 
-      const updateData = {
+      const updateData: {
+        status: "approved" | "declined" | "cancelled"
+        admin_action_by: string | undefined
+        admin_action_at: string
+        is_read_mdrr: "yes" | "no" | null
+      } = {
         status: newStatus,
         admin_action_by: userData.user?.id,
         admin_action_at: new Date().toISOString(),
+        is_read_mdrr: "yes" as const, // Use const assertion to ensure correct type
       }
 
       // Update the reservations table
@@ -188,16 +197,65 @@ export default function MDRRStaffApprovalsPage() {
     }
   }
 
+  const markAsRead = async (reservationId: string) => {
+    try {
+      const { error } = await supabase
+        .from("reservations")
+        .update({ is_read_mdrr: "yes" as const })
+        .eq("id", reservationId)
+
+      if (error) throw error
+
+      setReservations(
+        reservations.map((reservation) =>
+          reservation.id === reservationId ? { ...reservation, is_read_mdrr: "yes" as const } : reservation,
+        ),
+      )
+    } catch (error) {
+      console.error("Error marking reservation as read:", error)
+      showToast("Failed to mark reservation as read", "error")
+    }
+  }
+
+  const markAllAsRead = async () => {
+    try {
+      const { error } = await supabase
+        .from("reservations")
+        .update({ is_read_mdrr: "yes" as const })
+        .eq("facility.name", "MO Conference Room")
+        .or("is_read_mdrr.eq.no,is_read_mdrr.is.null")
+
+      if (error) throw error
+
+      setReservations(
+        reservations.map((reservation) => ({
+          ...reservation,
+          is_read_mdrr: "yes" as const,
+        })),
+      )
+
+      showToast("All reservations marked as read", "success")
+    } catch (error) {
+      console.error("Error marking all reservations as read:", error)
+      showToast("Failed to mark all reservations as read", "error")
+    }
+  }
+
   const filteredReservations = useMemo(() => {
     return reservations
       .filter((reservation) => statusFilter === "all" || reservation.status === statusFilter)
+      .filter((reservation) => {
+        if (readFilter === "all") return true
+        if (readFilter === "unread") return reservation.is_read_mdrr === "no" || reservation.is_read_mdrr === null
+        return reservation.is_read_mdrr === "yes"
+      })
       .filter((reservation) =>
         searchQuery
           ? reservation.booker_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
             reservation.facility.name.toLowerCase().includes(searchQuery.toLowerCase())
           : true,
       )
-  }, [reservations, statusFilter, searchQuery])
+  }, [reservations, statusFilter, readFilter, searchQuery])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -216,6 +274,14 @@ export default function MDRRStaffApprovalsPage() {
     }
   }
 
+  const isReservationNew = (reservation: Reservation) => {
+    return reservation.is_read_mdrr === "no" || reservation.is_read_mdrr === null
+  }
+
+  const unreadCount = useMemo(() => {
+    return reservations.filter((r) => isReservationNew(r)).length
+  }, [reservations])
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -229,23 +295,42 @@ export default function MDRRStaffApprovalsPage() {
 
   return (
     <div className="space-y-6 p-6 max-w-full">
-      <h1 className="text-3xl font-bold">MDRR Staff Portal</h1>
+      <div className="flex flex-col sm:flex-row justify-between items-center">
+        <h1 className="text-3xl font-bold">MDRR Staff Portal</h1>
+        <div className="flex items-center space-x-2 mt-4 sm:mt-0">
+          {unreadCount > 0 && (
+            <Button onClick={markAllAsRead} variant="outline" size="sm" className="flex items-center">
+              <Check className="h-4 w-4 mr-2" />
+              Mark All as Read ({unreadCount})
+            </Button>
+          )}
+          <Button onClick={fetchReservations} variant="outline" size="sm">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+      </div>
+
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
           <strong className="font-bold">Error: </strong>
           <span className="block sm:inline">{error}</span>
         </div>
       )}
+
       <Card className="w-full">
+        <CardHeader>
+          <CardTitle>MO Conference Room Reservations</CardTitle>
+        </CardHeader>
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row justify-between items-center mb-6 space-y-4 sm:space-y-0 sm:space-x-4">
-            <div className="w-full sm:w-auto">
-              <Select onValueChange={(value) => setStatusFilter(value)}>
+            <div className="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
+              <Select onValueChange={(value) => setStatusFilter(value)} defaultValue="all">
                 <SelectTrigger className="w-full sm:w-[180px]">
                   <SelectValue placeholder="Filter by Status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="declined">Declined</SelectItem>
@@ -253,7 +338,19 @@ export default function MDRRStaffApprovalsPage() {
                   <SelectItem value="completed">Completed</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Select onValueChange={(value) => setReadFilter(value)} defaultValue="all">
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter by Read Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="unread">Unread</SelectItem>
+                  <SelectItem value="read">Read</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
+
             <div className="w-full sm:w-auto relative flex-grow sm:max-w-md">
               <Input
                 type="text"
@@ -265,6 +362,7 @@ export default function MDRRStaffApprovalsPage() {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             </div>
           </div>
+
           {filteredReservations.length > 0 ? (
             <div className="overflow-x-auto -mx-6">
               <div className="inline-block min-w-full align-middle">
@@ -282,8 +380,19 @@ export default function MDRRStaffApprovalsPage() {
                     </TableHeader>
                     <TableBody>
                       {filteredReservations.map((reservation) => (
-                        <TableRow key={reservation.id}>
-                          <TableCell className="font-medium">{reservation.booker_name}</TableCell>
+                        <TableRow
+                          key={reservation.id}
+                          className={isReservationNew(reservation) ? "bg-blue-50 shadow-md" : ""}
+                          onClick={() => isReservationNew(reservation) && markAsRead(reservation.id)}
+                        >
+                          <TableCell className="font-medium">
+                            {reservation.booker_name}
+                            {isReservationNew(reservation) && (
+                              <Badge variant="default" className="ml-2">
+                                New
+                              </Badge>
+                            )}
+                          </TableCell>
                           <TableCell>{reservation.facility.name}</TableCell>
                           <TableCell>{format(new Date(reservation.start_time), "MMM d, yyyy h:mm a")}</TableCell>
                           <TableCell>{format(new Date(reservation.end_time), "MMM d, yyyy h:mm a")}</TableCell>
@@ -426,4 +535,3 @@ export default function MDRRStaffApprovalsPage() {
     </div>
   )
 }
-

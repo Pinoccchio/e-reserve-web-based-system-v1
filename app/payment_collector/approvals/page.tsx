@@ -9,7 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { format, differenceInHours } from "date-fns"
-import { Calendar, Building, Users, AlertCircle, DollarSign } from "lucide-react"
+import { Calendar, Building, Users, AlertCircle, DollarSign, Check } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { showToast } from "@/components/ui/toast"
 
@@ -36,11 +36,13 @@ interface PaymentApproval {
   user_id: string
   facility: Facility
   total_price: number
+  is_read_payment_collector?: "yes" | "no" | null
 }
 
 export default function PaymentCollectorApprovalsPage() {
   const [approvals, setApprovals] = useState<PaymentApproval[]>([])
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [readFilter, setReadFilter] = useState<string>("all")
   const [searchQuery, setSearchQuery] = useState<string>("")
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -51,6 +53,7 @@ export default function PaymentCollectorApprovalsPage() {
 
   async function fetchApprovals() {
     try {
+      setIsLoading(true)
       const { data, error } = await supabase
         .from("payment_collector_approval")
         .select(`
@@ -61,7 +64,7 @@ export default function PaymentCollectorApprovalsPage() {
 
       if (error) throw error
 
-      const approvalsWithTotalPrice = data.map((approval: PaymentApproval) => ({
+      const approvalsWithTotalPrice = data.map((approval: any) => ({
         ...approval,
         total_price: approval.total_price || calculateTotalPrice(approval),
       }))
@@ -209,17 +212,72 @@ export default function PaymentCollectorApprovalsPage() {
     }
   }
 
+  const isApprovalNew = (approval: PaymentApproval) => {
+    return approval.is_read_payment_collector === "no" || approval.is_read_payment_collector === null
+  }
+
+  const unreadCount = useMemo(() => {
+    return approvals.filter((a) => isApprovalNew(a)).length
+  }, [approvals])
+
+  const markAsRead = async (approvalId: number) => {
+    try {
+      const { error } = await supabase
+        .from("payment_collector_approval")
+        .update({ is_read_payment_collector: "yes" })
+        .eq("id", approvalId)
+
+      if (error) throw error
+
+      setApprovals(
+        approvals.map((approval) =>
+          approval.id === approvalId ? { ...approval, is_read_payment_collector: "yes" } : approval,
+        ),
+      )
+    } catch (error) {
+      console.error("Error marking approval as read:", error)
+      showToast("Failed to mark approval as read", "error")
+    }
+  }
+
+  const markAllAsRead = async () => {
+    try {
+      const { error } = await supabase
+        .from("payment_collector_approval")
+        .update({ is_read_payment_collector: "yes" })
+        .or("is_read_payment_collector.eq.no,is_read_payment_collector.is.null")
+
+      if (error) throw error
+
+      setApprovals(
+        approvals.map((approval) => ({
+          ...approval,
+          is_read_payment_collector: "yes",
+        })),
+      )
+
+      showToast("All approvals marked as read", "success")
+    } catch (error) {
+      console.error("Error marking all approvals as read:", error)
+      showToast("Failed to mark all approvals as read", "error")
+    }
+  }
+
   const filteredApprovals = useMemo(() => {
     return approvals.filter((approval) => {
       const statusMatch = statusFilter === "all" || approval.status === statusFilter
+      const readMatch =
+        readFilter === "all" ||
+        (readFilter === "unread" && isApprovalNew(approval)) ||
+        (readFilter === "read" && approval.is_read_payment_collector === "yes")
       const searchMatch =
         searchQuery === "" ||
         approval.booker_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         approval.booker_email.toLowerCase().includes(searchQuery.toLowerCase()) ||
         approval.facility.name.toLowerCase().includes(searchQuery.toLowerCase())
-      return statusMatch && searchMatch
+      return statusMatch && searchMatch && readMatch
     })
-  }, [approvals, statusFilter, searchQuery])
+  }, [approvals, statusFilter, readFilter, searchQuery])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -242,6 +300,12 @@ export default function PaymentCollectorApprovalsPage() {
     <div className="space-y-6 p-6 max-w-full">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Payment Collector Approvals</h1>
+        {unreadCount > 0 && (
+          <Button onClick={markAllAsRead} variant="outline" size="sm" className="flex items-center">
+            <Check className="h-4 w-4 mr-2" />
+            Mark All as Read ({unreadCount})
+          </Button>
+        )}
       </div>
       <div className="flex items-center space-x-4">
         <Input
@@ -262,6 +326,16 @@ export default function PaymentCollectorApprovalsPage() {
             <SelectItem value="declined">Declined</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
             <SelectItem value="completed">Completed</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={readFilter} onValueChange={setReadFilter}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by Read Status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="unread">Unread</SelectItem>
+            <SelectItem value="read">Read</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -289,8 +363,19 @@ export default function PaymentCollectorApprovalsPage() {
           </TableHeader>
           <TableBody>
             {filteredApprovals.map((approval) => (
-              <TableRow key={approval.id}>
-                <TableCell className="font-medium">{approval.booker_name}</TableCell>
+              <TableRow
+                key={approval.id}
+                className={isApprovalNew(approval) ? "bg-blue-50 shadow-md" : ""}
+                onClick={() => isApprovalNew(approval) && markAsRead(approval.id)}
+              >
+                <TableCell className="font-medium">
+                  {approval.booker_name}
+                  {isApprovalNew(approval) && (
+                    <Badge variant="default" className="ml-2">
+                      New
+                    </Badge>
+                  )}
+                </TableCell>
                 <TableCell>{approval.facility.name}</TableCell>
                 <TableCell>{format(new Date(approval.start_time), "MMM d, yyyy h:mm a")}</TableCell>
                 <TableCell>{format(new Date(approval.end_time), "MMM d, yyyy h:mm a")}</TableCell>
@@ -398,4 +483,3 @@ export default function PaymentCollectorApprovalsPage() {
     </div>
   )
 }
-

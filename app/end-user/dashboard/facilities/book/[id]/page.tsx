@@ -221,7 +221,9 @@ export default function BookingPage({ params }: PageProps) {
               >
                 {reservation.facility.name}
                 <span className="ml-1 text-[10px]">
-                  ({reservation.source === "admin" ? "Admin" : "Payment Collector"})
+                  {reservation.facility.name === "MO Conference Room"
+                    ? "(Admin | MDRR Staff)"
+                    : `(${reservation.source === "admin" ? "Admin" : "Payment Collector"})`}
                 </span>
               </Badge>
             ))}
@@ -346,7 +348,8 @@ export default function BookingPage({ params }: PageProps) {
       endDateTime.setHours(Number(endTime.split(":")[0]), Number(endTime.split(":")[1]))
 
       const usageHours = differenceInHours(endDateTime, startDateTime)
-      const totalPrice = facility!.price_per_hour * usageHours
+      // Use the facility price directly without multiplying by hours
+      const totalPrice = facility!.price_per_hour
 
       const isSpecialVenue = SPECIAL_VENUES.includes(facility!.name)
       const isFreeVenue = FREE_VENUES.includes(facility!.name)
@@ -376,10 +379,8 @@ export default function BookingPage({ params }: PageProps) {
         ...((!isSpecialVenue || isFreeVenue) && {
           is_read_admin: "no",
         }),
-        // Add fields for MDRR notification if it's MO Conference Room
-        ...(isMOConferenceRoom && {
-          is_read_mdrr: "no",
-        }),
+        // Set is_read_mdrr based on facility type
+        is_read_mdrr: isMOConferenceRoom ? "no" : "yes", // Set to "no" only for MO Conference Room
       }
 
       // Special venues go to payment_collector_approval
@@ -567,6 +568,8 @@ export default function BookingPage({ params }: PageProps) {
         action_type: "new_booking",
         related_id: receiptId,
         is_read: "no",
+        // Set is_read_mdrr to "no" only for MO Conference Room
+        is_read_mdrr: facility.name === "MO Conference Room" ? "no" : "yes",
       })
     })
 
@@ -1047,3 +1050,4 @@ export default function BookingPage({ params }: PageProps) {
     </div>
   )
 }
+  

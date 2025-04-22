@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useRef, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -7,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { MoreVertical, Check, X, MessageSquare, Bot, Send } from 'lucide-react'
+import { MoreVertical, Check, X, MessageSquare, Bot, Send, RefreshCw } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
 import { format } from "date-fns"
@@ -19,6 +21,7 @@ interface User {
   email: string
   account_type: string
   unread_count?: number
+  last_message_at?: string | null
 }
 
 interface Message {
@@ -52,6 +55,17 @@ export default function ChatPage() {
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const [newMessageNotification, setNewMessageNotification] = useState(false)
+
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      // Only scroll the chat container, not the whole page
+      const chatContainer = messagesContainerRef.current
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight
+      }
+    }
+  }, [])
 
   const fetchCurrentUser = useCallback(async () => {
     try {
@@ -108,50 +122,49 @@ export default function ChatPage() {
         return acc
       }, [] as UnreadCount[])
 
-      // Add unread counts to admins
-      const adminsWithUnreadCounts = adminData.map((admin) => ({
-        ...admin,
-        unread_count: groupedCounts.find((count) => count.sender_id === admin.id)?.count || 0,
-      }))
+      // Fetch the most recent message timestamp for each admin
+      const adminsWithLastMessagePromises = adminData.map(async (admin) => {
+        // Get the most recent message between this admin and the current user (in either direction)
+        const { data: lastMessage } = await supabase
+          .from("messages")
+          .select("created_at")
+          .or(
+            `and(sender_id.eq.${admin.id},receiver_id.eq.${currentUser.id}),and(sender_id.eq.${currentUser.id},receiver_id.eq.${admin.id})`,
+          )
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single()
 
-      setAdmins(adminsWithUnreadCounts)
+        return {
+          ...admin,
+          unread_count: groupedCounts.find((count) => count.sender_id === admin.id)?.count || 0,
+          last_message_at: lastMessage?.created_at || null,
+        }
+      })
+
+      const adminsWithLastMessage = await Promise.all(adminsWithLastMessagePromises)
+
+      // Sort admins: first by unread messages (desc), then by last message timestamp (desc)
+      const sortedAdmins = adminsWithLastMessage.sort((a, b) => {
+        // First sort by unread count (admins with unread messages come first)
+        if (a.unread_count !== b.unread_count) {
+          return b.unread_count - a.unread_count
+        }
+
+        // Then sort by last message timestamp (most recent first)
+        if (!a.last_message_at && !b.last_message_at) return 0
+        if (!a.last_message_at) return 1
+        if (!b.last_message_at) return -1
+
+        return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+      })
+
+      setAdmins(sortedAdmins)
     } catch (error) {
       console.error("Error fetching admins:", error)
       setError("Failed to fetch admins. Please try again later.")
     }
   }, [currentUser])
-
-  useEffect(() => {
-    fetchCurrentUser()
-  }, [fetchCurrentUser])
-
-  useEffect(() => {
-    if (currentUser) {
-      fetchAdmins()
-      const channel = supabase
-        .channel("messages")
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "messages",
-            filter: `receiver_id=eq.${currentUser.id}`,
-          },
-          () => {
-            fetchAdmins()
-            if (selectedAdmin) {
-              fetchMessages()
-            }
-          },
-        )
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
-  }, [currentUser, selectedAdmin, fetchAdmins])
 
   const fetchMessages = useCallback(async () => {
     if (!currentUser || !selectedAdmin) return
@@ -187,23 +200,117 @@ export default function ChatPage() {
     } finally {
       setIsLoading(false)
     }
-  }, [currentUser, selectedAdmin, fetchAdmins])
+  }, [currentUser, selectedAdmin, fetchAdmins, scrollToBottom])
+
+  // Handle new message from real-time subscription
+  const handleNewMessage = useCallback(
+    (payload: any) => {
+      const newMsg = payload.new as Message
+
+      // If we're in a conversation with the sender/receiver of this message
+      if (
+        selectedAdmin &&
+        ((newMsg.sender_id === currentUser?.id && newMsg.receiver_id === selectedAdmin.id) ||
+          (newMsg.sender_id === selectedAdmin.id && newMsg.receiver_id === currentUser?.id))
+      ) {
+        // Check if message already exists to avoid duplicates
+        const messageExists = messages.some((msg) => msg.id === newMsg.id)
+
+        if (!messageExists) {
+          setMessages((prevMessages) => [...prevMessages, newMsg])
+
+          // If message is from admin to current user, mark as read
+          if (
+            newMsg.sender_id === selectedAdmin.id &&
+            newMsg.receiver_id === currentUser?.id &&
+            newMsg.is_read === "no"
+          ) {
+            // Update read status
+            supabase
+              .from("messages")
+              .update({ is_read: "yes" })
+              .eq("id", newMsg.id)
+              .then(() => {
+                // Update unread counts after marking as read
+                fetchAdmins()
+              })
+          }
+
+          // Show notification for new messages from admin
+          if (newMsg.sender_id === selectedAdmin.id) {
+            setNewMessageNotification(true)
+            setTimeout(() => setNewMessageNotification(false), 3000)
+          }
+
+          // Scroll to bottom
+          setTimeout(scrollToBottom, 100)
+        }
+      }
+
+      // Always update admin list to refresh unread counts
+      fetchAdmins()
+    },
+    [currentUser, selectedAdmin, messages, fetchAdmins, scrollToBottom],
+  )
+
+  useEffect(() => {
+    fetchCurrentUser()
+  }, [fetchCurrentUser])
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchAdmins()
+
+      // Set up real-time subscriptions
+      const receiverChannel = supabase
+        .channel("messages-receiver")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "messages",
+            filter: `receiver_id=eq.${currentUser.id}`,
+          },
+          (payload) => {
+            handleNewMessage(payload)
+            fetchAdmins()
+            if (selectedAdmin) {
+              fetchMessages()
+            }
+          },
+        )
+        .subscribe()
+
+      // Channel for sent messages
+      const senderChannel = supabase
+        .channel("messages-sender")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `sender_id=eq.${currentUser.id}`,
+          },
+          (payload) => {
+            handleNewMessage(payload)
+          },
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(receiverChannel)
+        supabase.removeChannel(senderChannel)
+      }
+    }
+  }, [currentUser, selectedAdmin, fetchAdmins, fetchMessages, handleNewMessage])
 
   useEffect(() => {
     if (currentUser && selectedAdmin && !isChatBotMode) {
       fetchMessages()
     }
   }, [currentUser, selectedAdmin, fetchMessages, isChatBotMode])
-
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      // Only scroll the chat container, not the whole page
-      const chatContainer = messagesContainerRef.current
-      if (chatContainer) {
-        chatContainer.scrollTop = chatContainer.scrollHeight
-      }
-    }
-  }, [])
 
   // Scroll to bottom whenever messages or botMessages change
   useEffect(() => {
@@ -216,6 +323,26 @@ export default function ChatPage() {
     if (!currentUser || !selectedAdmin || !newMessage.trim()) return
 
     try {
+      // Create optimistic message for immediate UI update
+      const optimisticMessage: Message = {
+        id: `temp-${Date.now()}`,
+        sender_id: currentUser.id,
+        receiver_id: selectedAdmin.id,
+        content: newMessage.trim(),
+        created_at: new Date().toISOString(),
+        is_read: "no",
+      }
+
+      // Add to UI immediately
+      setMessages((prevMessages) => [...prevMessages, optimisticMessage])
+
+      // Clear input
+      setNewMessage("")
+
+      // Scroll to bottom
+      setTimeout(scrollToBottom, 10)
+
+      // Actually send to server
       const { error } = await supabase.from("messages").insert({
         sender_id: currentUser.id,
         receiver_id: selectedAdmin.id,
@@ -225,11 +352,13 @@ export default function ChatPage() {
 
       if (error) throw error
 
-      setNewMessage("")
-      await fetchMessages()
+      // No need to fetch messages as real-time subscription will handle it
     } catch (error) {
       console.error("Error sending message:", error)
       setError("Failed to send message. Please try again.")
+
+      // Remove optimistic message on error
+      setMessages((prevMessages) => prevMessages.filter((msg) => !msg.id.startsWith("temp-")))
     }
   }
 
@@ -313,7 +442,7 @@ export default function ChatPage() {
             content: data.output || "I'm sorry, I couldn't process that request.",
           },
         ])
-        
+
         setTimeout(scrollToBottom, 100)
       } catch (error) {
         console.error("Error getting chatbot response:", error)
@@ -336,15 +465,35 @@ export default function ChatPage() {
     }
   }
 
+  // Add polling as a fallback for real-time updates
+  useEffect(() => {
+    if (!currentUser || !selectedAdmin || isChatBotMode) return
+
+    // Poll for new messages every 10 seconds as a fallback
+    const pollingInterval = setInterval(() => {
+      fetchMessages()
+    }, 10000)
+
+    return () => clearInterval(pollingInterval)
+  }, [currentUser, selectedAdmin, isChatBotMode, fetchMessages])
+
   return (
     <div className="container mx-auto p-4 flex flex-col">
-      <h1 className="text-2xl font-bold mb-4">Chat</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Chat</h1>
+        <Button onClick={() => fetchAdmins()} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh
+        </Button>
+      </div>
+
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="md:col-span-1 flex flex-col h-[600px]">
           <CardHeader className="flex-none">
@@ -375,8 +524,8 @@ export default function ChatPage() {
                       <p className="font-semibold">{`${admin.first_name} ${admin.last_name}`}</p>
                       <p className="text-sm text-gray-500">{admin.email}</p>
                     </div>
-                    {admin.unread_count !== undefined && (
-                      admin.unread_count > 0 ? (
+                    {admin.unread_count !== undefined &&
+                      (admin.unread_count > 0 ? (
                         <Badge variant="destructive" className="animate-pulse">
                           {admin.unread_count} new
                         </Badge>
@@ -384,8 +533,7 @@ export default function ChatPage() {
                         <Badge variant="outline" className="text-gray-400">
                           0
                         </Badge>
-                      )
-                    )}
+                      ))}
                   </li>
                 ))}
               </ul>
@@ -395,11 +543,20 @@ export default function ChatPage() {
         <Card className="md:col-span-2 flex flex-col h-[600px]">
           <CardHeader className="flex-none">
             <CardTitle>
-              {isChatBotMode
-                ? "Chat with AI Assistant"
-                : selectedAdmin
-                  ? `Chat with ${selectedAdmin.first_name} ${selectedAdmin.last_name}`
-                  : "Select an admin to start chatting"}
+              {isChatBotMode ? (
+                "Chat with AI Assistant"
+              ) : selectedAdmin ? (
+                <div className="flex items-center">
+                  <span>{`Chat with ${selectedAdmin.first_name} ${selectedAdmin.last_name}`}</span>
+                  {newMessageNotification && (
+                    <Badge variant="destructive" className="ml-2 animate-pulse">
+                      New message
+                    </Badge>
+                  )}
+                </div>
+              ) : (
+                "Select an admin to start chatting"
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col min-h-0">
@@ -429,7 +586,9 @@ export default function ChatPage() {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-gray-500">
-                  <p>{selectedAdmin ? "No messages yet. Start a conversation!" : "Select an admin to start chatting"}</p>
+                  <p>
+                    {selectedAdmin ? "No messages yet. Start a conversation!" : "Select an admin to start chatting"}
+                  </p>
                 </div>
               ) : (
                 <div className="flex-grow">
@@ -497,10 +656,7 @@ export default function ChatPage() {
                 disabled={isLoading || (!isChatBotMode && !selectedAdmin)}
                 className="flex-1"
               />
-              <Button 
-                type="submit" 
-                disabled={isLoading || (!isChatBotMode && !selectedAdmin) || !newMessage.trim()}
-              >
+              <Button type="submit" disabled={isLoading || (!isChatBotMode && !selectedAdmin) || !newMessage.trim()}>
                 <Send className="h-4 w-4 mr-2" />
                 Send
               </Button>

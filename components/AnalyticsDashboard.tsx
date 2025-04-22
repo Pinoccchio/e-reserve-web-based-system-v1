@@ -23,8 +23,8 @@ import {
 } from "recharts"
 
 interface AnalyticsData {
-  bookingsByPurpose: { purpose: string; count: number }[]
-  bookingsByFacility: { name: string; count: number }[]
+  bookingsByPurpose: { purpose: string; count: number; percentage: number }[]
+  bookingsByFacility: { facility_name: string; count: number; percentage: number }[]
   revenueByFacility: { name: string; revenue: number; percentage: number }[]
   bookingTrend: { date: string; count: number }[]
   frequentlyBookedFacilities: { name: string; count: number; percentage: number }[]
@@ -77,16 +77,17 @@ export function AnalyticsDashboard() {
         mostPopularFacilities,
         mostPopularFacilitiesByPurpose,
       ] = await Promise.all([
-        supabase.rpc("get_bookings_by_purpose"),
-        supabase.rpc("get_bookings_by_facility"),
-        supabase.rpc("get_revenue_by_facility"),
+        supabase.rpc("get_bookings_by_purpose", { exclude_pending: true }),
+        supabase.rpc("get_bookings_by_facility", { exclude_pending: true }),
+        supabase.rpc("get_revenue_by_facility", { exclude_pending: true }),
         supabase.rpc("get_daily_booking_count", {
           start_date: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          exclude_pending: true
         }),
-        supabase.rpc("get_frequently_booked_facilities"),
-        supabase.rpc("get_total_bookings_per_month"),
-        supabase.rpc("get_most_popular_facilities"),
-        supabase.rpc("get_most_popular_facilities_by_purpose"),
+        supabase.rpc("get_frequently_booked_facilities", { exclude_pending: true }),
+        supabase.rpc("get_total_bookings_per_month", { exclude_pending: true }),
+        supabase.rpc("get_most_popular_facilities", { exclude_pending: true }),
+        supabase.rpc("get_most_popular_facilities_by_purpose", { exclude_pending: true }),
       ])
 
       setAnalyticsData({
@@ -240,7 +241,7 @@ export function AnalyticsDashboard() {
               cy="50%"
               outerRadius={80}
               fill="#8884d8"
-              label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+              label={({ percent }) => `(${(percent * 100).toFixed(0)}%)`}
             >
               {analyticsData.frequentlyBookedFacilities?.map((entry, index) => (
                 <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />

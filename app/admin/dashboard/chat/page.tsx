@@ -1,5 +1,7 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect, useRef, useCallback } from "react"
 import { supabase } from "@/lib/supabase"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -8,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
-import { MoreVertical, Check, X, Send } from 'lucide-react'
+import { MoreVertical, Check, X, Send, RefreshCw } from "lucide-react"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { format } from "date-fns"
 
@@ -19,6 +21,7 @@ interface User {
   email: string
   account_type: string
   unread_count?: number
+  last_message_at?: string | null
 }
 
 interface Message {
@@ -42,46 +45,10 @@ export default function AdminChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [newMessageNotification, setNewMessageNotification] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    fetchCurrentUser()
-  }, [])
-
-  useEffect(() => {
-    if (currentUser) {
-      fetchUsers()
-      const channel = supabase
-        .channel("messages")
-        .on(
-          "postgres_changes",
-          {
-            event: "INSERT",
-            schema: "public",
-            table: "messages",
-            filter: `receiver_id=eq.${currentUser.id}`,
-          },
-          () => {
-            fetchUsers()
-            if (selectedUser) {
-              fetchMessages()
-            }
-          },
-        )
-        .subscribe()
-
-      return () => {
-        supabase.removeChannel(channel)
-      }
-    }
-  }, [currentUser, selectedUser])
-
-  useEffect(() => {
-    if (selectedUser) {
-      fetchMessages()
-    }
-  }, [selectedUser])
 
   // Updated scrollToBottom function to scroll only the chat container
   const scrollToBottom = useCallback(() => {
@@ -90,14 +57,7 @@ export default function AdminChatPage() {
     }
   }, [])
 
-  // Call scrollToBottom when messages change
-  useEffect(() => {
-    if (messages.length > 0) {
-      setTimeout(scrollToBottom, 100)
-    }
-  }, [messages, scrollToBottom])
-
-  const fetchCurrentUser = async () => {
+  const fetchCurrentUser = useCallback(async () => {
     try {
       const {
         data: { user },
@@ -118,9 +78,9 @@ export default function AdminChatPage() {
       console.error("Error fetching current user:", error)
       setError("Failed to fetch current user. Please try again later.")
     }
-  }
+  }, [])
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     if (!currentUser) return
 
     try {
@@ -151,22 +111,55 @@ export default function AdminChatPage() {
         return acc
       }, [] as UnreadCount[])
 
-      const usersWithUnreadCounts = userData.map((user) => ({
-        ...user,
-        unread_count: groupedCounts.find((count) => count.sender_id === user.id)?.count || 0,
-      }))
+      // Fetch the most recent message timestamp for each user
+      const usersWithLastMessagePromises = userData.map(async (user) => {
+        // Get the most recent message between this user and the admin (in either direction)
+        const { data: lastMessage } = await supabase
+          .from("messages")
+          .select("created_at")
+          .or(
+            `and(sender_id.eq.${user.id},receiver_id.eq.${currentUser.id}),and(sender_id.eq.${currentUser.id},receiver_id.eq.${user.id})`,
+          )
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single()
 
-      setUsers(usersWithUnreadCounts)
+        return {
+          ...user,
+          unread_count: groupedCounts.find((count) => count.sender_id === user.id)?.count || 0,
+          last_message_at: lastMessage?.created_at || null,
+        }
+      })
+
+      const usersWithLastMessage = await Promise.all(usersWithLastMessagePromises)
+
+      // Sort users: first by unread messages (desc), then by last message timestamp (desc)
+      const sortedUsers = usersWithLastMessage.sort((a, b) => {
+        // First sort by unread count (users with unread messages come first)
+        if (a.unread_count !== b.unread_count) {
+          return b.unread_count - a.unread_count
+        }
+
+        // Then sort by last message timestamp (most recent first)
+        if (!a.last_message_at && !b.last_message_at) return 0
+        if (!a.last_message_at) return 1
+        if (!b.last_message_at) return -1
+
+        return new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+      })
+
+      setUsers(sortedUsers)
     } catch (error) {
       console.error("Error fetching users:", error)
       setError("Failed to fetch users. Please try again later.")
     }
-  }
+  }, [currentUser])
 
   const fetchMessages = useCallback(async () => {
     if (!currentUser || !selectedUser) return
 
     try {
+      setIsLoading(true)
       const { data, error } = await supabase
         .from("messages")
         .select("*")
@@ -187,16 +180,155 @@ export default function AdminChatPage() {
         )
         fetchUsers() // Refresh unread counts
       }
+
+      // Scroll to bottom after messages are updated
+      setTimeout(scrollToBottom, 100)
     } catch (error) {
       console.error("Error fetching messages:", error)
       setError("Failed to fetch messages. Please try again later.")
+    } finally {
+      setIsLoading(false)
     }
-  }, [currentUser, selectedUser])
+  }, [currentUser, selectedUser, fetchUsers, scrollToBottom])
+
+  // Handle new message from real-time subscription
+  const handleNewMessage = useCallback(
+    (payload: any) => {
+      const newMsg = payload.new as Message
+
+      // If we're in a conversation with the sender/receiver of this message
+      if (
+        selectedUser &&
+        ((newMsg.sender_id === currentUser?.id && newMsg.receiver_id === selectedUser.id) ||
+          (newMsg.sender_id === selectedUser.id && newMsg.receiver_id === currentUser?.id))
+      ) {
+        // Check if message already exists to avoid duplicates
+        const messageExists = messages.some((msg) => msg.id === newMsg.id)
+
+        if (!messageExists) {
+          setMessages((prevMessages) => [...prevMessages, newMsg])
+
+          // If message is from user to admin, mark as read
+          if (
+            newMsg.sender_id === selectedUser.id &&
+            newMsg.receiver_id === currentUser?.id &&
+            newMsg.is_read === "no"
+          ) {
+            // Update read status
+            supabase
+              .from("messages")
+              .update({ is_read: "yes" })
+              .eq("id", newMsg.id)
+              .then(() => {
+                // Update unread counts after marking as read
+                fetchUsers()
+              })
+          }
+
+          // Show notification for new messages from user
+          if (newMsg.sender_id === selectedUser.id) {
+            setNewMessageNotification(true)
+            setTimeout(() => setNewMessageNotification(false), 3000)
+          }
+
+          // Scroll to bottom
+          setTimeout(scrollToBottom, 100)
+        }
+      }
+
+      // Always update user list to refresh unread counts and sort order
+      fetchUsers()
+    },
+    [currentUser, selectedUser, messages, fetchUsers, scrollToBottom],
+  )
+
+  useEffect(() => {
+    fetchCurrentUser()
+  }, [fetchCurrentUser])
+
+  useEffect(() => {
+    if (currentUser) {
+      fetchUsers()
+
+      // Set up real-time subscriptions
+      const receiverChannel = supabase
+        .channel("admin-messages-receiver")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "messages",
+            filter: `receiver_id=eq.${currentUser.id}`,
+          },
+          (payload) => {
+            handleNewMessage(payload)
+            fetchUsers()
+          },
+        )
+        .subscribe()
+
+      // Channel for sent messages
+      const senderChannel = supabase
+        .channel("admin-messages-sender")
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "messages",
+            filter: `sender_id=eq.${currentUser.id}`,
+          },
+          (payload) => {
+            handleNewMessage(payload)
+          },
+        )
+        .subscribe()
+
+      return () => {
+        supabase.removeChannel(receiverChannel)
+        supabase.removeChannel(senderChannel)
+      }
+    }
+  }, [currentUser, fetchUsers, handleNewMessage])
+
+  useEffect(() => {
+    if (currentUser && selectedUser) {
+      fetchMessages()
+    }
+  }, [currentUser, selectedUser, fetchMessages])
+
+  // Call scrollToBottom when messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom()
+    }
+  }, [messages, scrollToBottom])
 
   const sendMessage = async () => {
     if (!currentUser || !selectedUser || !newMessage.trim()) return
 
     try {
+      // Create optimistic message for immediate UI update
+      const optimisticMessage: Message = {
+        id: `temp-${Date.now()}`,
+        sender_id: currentUser.id,
+        receiver_id: selectedUser.id,
+        content: newMessage.trim(),
+        created_at: new Date().toISOString(),
+        is_read: "no",
+      }
+
+      // Add to UI immediately
+      setMessages((prevMessages) => [...prevMessages, optimisticMessage])
+
+      // Clear input
+      setNewMessage("")
+
+      // Scroll to bottom
+      setTimeout(scrollToBottom, 10)
+
+      // Actually send to server
       const { error } = await supabase.from("messages").insert({
         sender_id: currentUser.id,
         receiver_id: selectedUser.id,
@@ -205,13 +337,14 @@ export default function AdminChatPage() {
       })
 
       if (error) throw error
-      setNewMessage("")
-      await fetchMessages()
-      // Scroll to bottom after sending message
-      setTimeout(scrollToBottom, 100)
+
+      // No need to fetch messages as real-time subscription will handle it
     } catch (error) {
       console.error("Error sending message:", error)
       setError("Failed to send message. Please try again.")
+
+      // Remove optimistic message on error
+      setMessages((prevMessages) => prevMessages.filter((msg) => !msg.id.startsWith("temp-")))
     }
   }
 
@@ -248,138 +381,192 @@ export default function AdminChatPage() {
     }
   }
 
+  // Add polling as a fallback for real-time updates
+  useEffect(() => {
+    if (!currentUser || !selectedUser) return
+
+    // Poll for new messages every 10 seconds as a fallback
+    const pollingInterval = setInterval(() => {
+      fetchMessages()
+    }, 10000)
+
+    return () => clearInterval(pollingInterval)
+  }, [currentUser, selectedUser, fetchMessages])
+
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Admin Chat</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Admin Chat</h1>
+        <Button onClick={() => fetchUsers()} variant="outline" size="sm">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Refresh Users
+        </Button>
+      </div>
+
       {error && (
         <Alert variant="destructive" className="mb-4">
           <AlertTitle>Error</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="md:col-span-1">
-          <CardHeader>
+        <Card className="md:col-span-1 flex flex-col h-[600px]">
+          <CardHeader className="flex-none">
             <CardTitle>End Users</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="flex-1 overflow-y-auto min-h-0 p-0">
             {users.length === 0 ? (
               <p className="p-4">No users available</p>
             ) : (
-              <div className="h-[500px] overflow-y-auto"> {/* Fixed height with scrolling */}
-                <ul className="space-y-2 p-2">
-                  {users.map((user) => (
-                    <li
-                      key={user.id}
-                      className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer ${
-                        selectedUser?.id === user.id ? "bg-gray-100" : "hover:bg-gray-50"
-                      }`}
-                      onClick={() => setSelectedUser(user)}
-                    >
-                      <Avatar>
-                        <AvatarFallback>{getInitials(`${user.first_name} ${user.last_name}`)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-grow">
-                        <p className="font-semibold">{`${user.first_name} ${user.last_name}`}</p>
-                        <p className="text-sm text-gray-500">{user.email}</p>
-                      </div>
-                      {user.unread_count && user.unread_count > 0 && (
+              <ul className="space-y-2 p-2">
+                {users.map((user) => (
+                  <li
+                    key={user.id}
+                    className={`flex items-center space-x-2 p-2 rounded-md cursor-pointer ${
+                      selectedUser?.id === user.id ? "bg-gray-100" : "hover:bg-gray-50"
+                    }`}
+                    onClick={() => setSelectedUser(user)}
+                  >
+                    <Avatar>
+                      <AvatarFallback>{getInitials(`${user.first_name} ${user.last_name}`)}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-grow">
+                      <p className="font-semibold">{`${user.first_name} ${user.last_name}`}</p>
+                      <p className="text-sm text-gray-500">{user.email}</p>
+                    </div>
+                    {user.unread_count !== undefined &&
+                      (user.unread_count > 0 ? (
                         <Badge variant="destructive" className="animate-pulse">
                           {user.unread_count} new
                         </Badge>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              </div>
+                      ) : (
+                        <Badge variant="outline" className="text-gray-400">
+                          0
+                        </Badge>
+                      ))}
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
-        <Card className="md:col-span-2">
-          <CardHeader>
+
+        <Card className="md:col-span-2 flex flex-col h-[600px]">
+          <CardHeader className="flex-none">
             <CardTitle>
-              {selectedUser
-                ? `Chat with ${selectedUser.first_name} ${selectedUser.last_name}`
-                : "Select a user to start chatting"}
+              {selectedUser ? (
+                <div className="flex items-center">
+                  <span>{`Chat with ${selectedUser.first_name} ${selectedUser.last_name}`}</span>
+                  {newMessageNotification && (
+                    <Badge variant="destructive" className="ml-2 animate-pulse">
+                      New message
+                    </Badge>
+                  )}
+                </div>
+              ) : (
+                "Select a user to start chatting"
+              )}
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex-1 flex flex-col min-h-0">
             {selectedUser ? (
               <>
-                <div 
+                <div
                   ref={messagesContainerRef}
-                  className="h-[400px] overflow-y-auto mb-4 space-y-4 p-4"
+                  className="overflow-y-auto h-[calc(100%-4rem)] mb-4 space-y-4 p-4 flex flex-col"
                   id="chat-messages-container"
-                > 
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex items-start gap-2 mb-4 ${
-                        message.sender_id === currentUser?.id ? "justify-end" : "justify-start"
-                      }`}
-                    >
-                      <div
-                        className={`relative max-w-[70%] p-3 rounded-lg ${
-                          message.sender_id === currentUser?.id
-                            ? "bg-blue-500 text-white"
-                            : message.is_read === "no"
-                              ? "bg-blue-100 text-gray-800"
-                              : "bg-gray-200 text-gray-800"
-                        }`}
-                      >
-                        <div className="mb-1">{message.content}</div>
-                        <div className="text-xs opacity-70">{formatMessageDateTime(message.created_at)}</div>
-                      </div>
-                      {message.sender_id !== currentUser?.id && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-800"
-                            >
-                              <MoreVertical className="h-4 w-4" />
-                              <span className="sr-only">Open menu</span>
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => toggleMessageReadStatus(message.id, message.is_read)}>
-                              {message.is_read === "yes" ? (
-                                <>
-                                  <X className="mr-2 h-4 w-4" />
-                                  <span>Mark as unread</span>
-                                </>
-                              ) : (
-                                <>
-                                  <Check className="mr-2 h-4 w-4" />
-                                  <span>Mark as read</span>
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
+                >
+                  {isLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <p>Loading messages...</p>
                     </div>
-                  ))}
-                  <div ref={messagesEndRef} />
+                  ) : messages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      <p>No messages yet. Start a conversation!</p>
+                    </div>
+                  ) : (
+                    <div className="flex-grow">
+                      {messages.map((message) => (
+                        <div
+                          key={message.id}
+                          className={`flex items-start gap-2 mb-4 ${
+                            message.sender_id === currentUser?.id ? "justify-end" : "justify-start"
+                          }`}
+                        >
+                          <div
+                            className={`relative max-w-[70%] p-3 rounded-lg ${
+                              message.sender_id === currentUser?.id
+                                ? "bg-blue-500 text-white"
+                                : message.is_read === "no"
+                                  ? "bg-blue-100 text-gray-800"
+                                  : "bg-gray-200 text-gray-800"
+                            }`}
+                          >
+                            <div className="mb-1">{message.content}</div>
+                            <div className="text-xs opacity-70">{formatMessageDateTime(message.created_at)}</div>
+                          </div>
+                          {message.sender_id !== currentUser?.id && (
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0 hover:bg-gray-100 dark:hover:bg-gray-800"
+                                >
+                                  <MoreVertical className="h-4 w-4" />
+                                  <span className="sr-only">Open menu</span>
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => toggleMessageReadStatus(message.id, message.is_read)}>
+                                  {message.is_read === "yes" ? (
+                                    <>
+                                      <X className="mr-2 h-4 w-4" />
+                                      <span>Mark as unread</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Check className="mr-2 h-4 w-4" />
+                                      <span>Mark as read</span>
+                                    </>
+                                  )}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          )}
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </div>
+                  )}
                 </div>
-                <div className="flex space-x-2">
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault()
+                    sendMessage()
+                  }}
+                  className="flex-none flex w-full items-center space-x-2"
+                >
                   <Input
                     type="text"
                     placeholder="Type your message..."
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     onKeyDown={handleKeyPress}
+                    disabled={isLoading}
                     className="flex-1"
                   />
-                  <Button onClick={sendMessage} disabled={!newMessage.trim()}>
+                  <Button type="submit" disabled={isLoading || !newMessage.trim()}>
                     <Send className="h-4 w-4 mr-2" />
                     Send
                   </Button>
-                </div>
+                </form>
               </>
             ) : (
-              <p className="text-center text-gray-500">Select a user to start chatting</p>
+              <div className="flex items-center justify-center h-full text-gray-500">
+                <p>Select a user to start chatting</p>
+              </div>
             )}
           </CardContent>
         </Card>

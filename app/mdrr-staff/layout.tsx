@@ -18,11 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { supabase } from "@/lib/supabase"
 import { showToast } from "@/components/ui/toast"
-
-const menuItems = [
-  { icon: ClipboardList, label: "Approvals", href: "/mdrr-staff/approvals" },
-  { icon: Bell, label: "Notifications", href: "/mdrr-staff/notifications" },
-]
+import { Badge } from "@/components/ui/badge"
 
 export default function MDRRStaffLayout({
   children,
@@ -32,6 +28,8 @@ export default function MDRRStaffLayout({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [userName, setUserName] = useState("")
+  const [unreadApprovals, setUnreadApprovals] = useState(0)
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
   const router = useRouter()
   const [disableBackListener, setDisableBackListener] = useState<(() => void) | null>(null)
 
@@ -90,6 +88,98 @@ export default function MDRRStaffLayout({
     fetchUserData()
   }, [router])
 
+  // Fetch unread counts
+  useEffect(() => {
+    const fetchUnreadCounts = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+      if (!user) return
+
+      // Fetch unread approvals count - check for both "no" and null values --FORADMIM
+      const { count: approvalsCount, error: approvalsError } = await supabase
+        .from("reservations")
+        .select("*", { count: "exact", head: true })
+        .or("is_read_mdrr.eq.no,is_read_mdrr.is.null")
+
+      if (approvalsError) {
+        console.error("Error fetching unread approvals:", approvalsError)
+      } else {
+        setUnreadApprovals(approvalsCount || 0)
+      }
+
+      // Fetch unread notifications count - check for both "no" and null values
+      const { count: notificationsCount, error: notificationsError } = await supabase
+        .from("notifications")
+        .select("*", { count: "exact", head: true })
+        .or("is_read_mdrr.eq.no,is_read_mdrr.is.null")
+        .eq("user_id", user.id)
+
+      if (notificationsError) {
+        console.error("Error fetching unread notifications:", notificationsError)
+      } else {
+        setUnreadNotifications(notificationsCount || 0)
+      }
+    }
+
+    fetchUnreadCounts()
+
+    // Set up a subscription to refresh counts when data changes
+    const subscription = supabase
+      .channel("mdrr-schema-db-changes")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reservations",
+        },
+        () => {
+          fetchUnreadCounts()
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notifications",
+        },
+        () => {
+          fetchUnreadCounts()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      subscription.unsubscribe()
+    }
+  }, [])
+
+  const handleMenuItemClick = async (path: string) => {
+    if (isMobile) {
+      setIsSidebarOpen(false)
+    }
+
+    // If clicking on approvals, mark all as read
+    if (path.includes("/approvals")) {
+      const { error } = await supabase
+        .from("reservations")
+        .update({ is_read_mdrr: "yes" })
+        .or("is_read_mdrr.eq.no,is_read_mdrr.is.null")
+
+      if (error) {
+        console.error("Error updating read status:", error)
+      } else {
+        setUnreadApprovals(0)
+      }
+    }
+
+    // We don't mark notifications as read here - that's handled in the notifications page
+
+    router.push(path)
+  }
+
   const handleLogout = async () => {
     try {
       // Remove the popstate event listener before logout
@@ -107,6 +197,22 @@ export default function MDRRStaffLayout({
       showToast("Error signing out. Please try again.", "error")
     }
   }
+
+  // Define menu items with badge counts
+  const menuItems = [
+    {
+      icon: ClipboardList,
+      label: "Approvals",
+      href: "/mdrr-staff/approvals",
+      unreadCount: unreadApprovals,
+    },
+    {
+      icon: Bell,
+      label: "Notifications",
+      href: "/mdrr-staff/notifications",
+      unreadCount: unreadNotifications,
+    },
+  ]
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -166,15 +272,17 @@ export default function MDRRStaffLayout({
         >
           <nav className="flex flex-col space-y-1 p-4 h-full overflow-y-auto">
             {menuItems.map((item) => (
-              <Link
+              <button
                 key={item.label}
-                href={item.href}
-                className="flex items-center space-x-2 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-                onClick={() => isMobile && setIsSidebarOpen(false)}
+                onClick={() => handleMenuItemClick(item.href)}
+                className="flex items-center justify-between px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-md transition-colors text-left w-full"
               >
-                <item.icon className="h-5 w-5" />
-                <span>{item.label}</span>
-              </Link>
+                <div className="flex items-center space-x-2">
+                  <item.icon className="h-5 w-5" />
+                  <span>{item.label}</span>
+                </div>
+                {item.unreadCount > 0 && <Badge className="bg-red-500">{item.unreadCount}</Badge>}
+              </button>
             ))}
           </nav>
         </aside>
