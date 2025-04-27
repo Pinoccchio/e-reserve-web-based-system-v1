@@ -165,7 +165,7 @@ const FacilitiesMap: React.FC<FacilitiesMapProps> = ({ facilities, onVideoClick,
                       </p>
                       <p className="text-sm mb-2">
                         <strong>Price:</strong>{" "}
-                        {facility.price_per_hour > 0 ? `₱${facility.price_per_hour}/hour` : "Free"}
+                        {facility.price_per_hour > 0 ? `₱${facility.price_per_hour}/day` : "Free"}
                       </p>
                       {facility.popular_uses.length > 0 && (
                         <div className="text-sm mb-2">

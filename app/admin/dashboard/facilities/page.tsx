@@ -1,12 +1,22 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Search, Eye, Plus } from "lucide-react"
+import { Search, Eye, Plus, Trash2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { VirtualTourModal } from "@/components/VirtualTourModal"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import Image from "next/image"
 import { createClient } from "@supabase/supabase-js"
 import Link from "next/link"
@@ -30,6 +40,8 @@ export default function FacilitiesPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [filterType, setFilterType] = useState("all")
   const [virtualTourFacility, setVirtualTourFacility] = useState<Facility | null>(null)
+  const [facilityToDelete, setFacilityToDelete] = useState<Facility | null>(null)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
 
   useEffect(() => {
     fetchFacilities()
@@ -46,6 +58,41 @@ export default function FacilitiesPage() {
     } else {
       setFacilities(data as Facility[])
     }
+  }
+
+  const handleDeleteClick = (facility: Facility) => {
+    setFacilityToDelete(facility)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!facilityToDelete) return
+
+    try {
+      // Delete facility images first (foreign key constraint)
+      await supabase.from("facility_images").delete().eq("facility_id", facilityToDelete.id)
+
+      // Then delete the facility
+      const { error } = await supabase.from("facilities").delete().eq("id", facilityToDelete.id)
+
+      if (error) {
+        console.error("Error deleting facility:", error)
+      } else {
+        // Update the facilities list after successful deletion
+        setFacilities(facilities.filter((f) => f.id !== facilityToDelete.id))
+      }
+    } catch (error) {
+      console.error("Error in delete operation:", error)
+    }
+
+    // Close the dialog and reset the facility to delete
+    setIsDeleteDialogOpen(false)
+    setFacilityToDelete(null)
+  }
+
+  const handleDeleteCancel = () => {
+    setIsDeleteDialogOpen(false)
+    setFacilityToDelete(null)
   }
 
   const filteredFacilities = facilities.filter(
@@ -124,6 +171,9 @@ export default function FacilitiesPage() {
               <Link href={`/admin/dashboard/facilities/edit/${facility.id}`} passHref>
                 <Button className="w-full sm:w-auto">Edit</Button>
               </Link>
+              <Button variant="destructive" className="w-full sm:w-auto" onClick={() => handleDeleteClick(facility)}>
+                <Trash2 className="mr-2 h-4 w-4" /> Delete
+              </Button>
             </CardFooter>
           </Card>
         ))}
@@ -144,6 +194,24 @@ export default function FacilitiesPage() {
           images={virtualTourFacility.images}
         />
       )}
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this venue?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the facility and all associated data from the
+              database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDeleteCancel}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
